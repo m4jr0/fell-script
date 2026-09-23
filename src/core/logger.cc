@@ -5,7 +5,7 @@
 namespace fell {
 namespace {
 
-void DefaultLogSink(LogLevel level, std::string_view message) {
+void DefaultLogSink(LogLevel level, StringView message) {
   switch (level) {
     case LogLevel::kDebug:
       std::cerr << "[debug] ";
@@ -32,23 +32,15 @@ void Logger::SetSink(LogSink sink) {
   log_sink = sink != nullptr ? sink : &DefaultLogSink;
 }
 
-void Logger::Debug(std::string_view message) {
-  Log(LogLevel::kDebug, message);
-}
+void Logger::Debug(StringView message) { Log(LogLevel::kDebug, message); }
 
-void Logger::Info(std::string_view message) {
-  Log(LogLevel::kInfo, message);
-}
+void Logger::Info(StringView message) { Log(LogLevel::kInfo, message); }
 
-void Logger::Warning(std::string_view message) {
-  Log(LogLevel::kWarning, message);
-}
+void Logger::Warning(StringView message) { Log(LogLevel::kWarning, message); }
 
-void Logger::Error(std::string_view message) {
-  Log(LogLevel::kError, message);
-}
+void Logger::Error(StringView message) { Log(LogLevel::kError, message); }
 
-void Logger::Log(LogLevel level, std::string_view message) {
+void Logger::Log(LogLevel level, StringView message) {
   log_sink(level, message);
 }
 

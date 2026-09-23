@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Fell - REPL",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/fell",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "gdb"
+    },
+    {
+      "name": "Fell - sample.fell",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/fell",
+      "args": [
+        "sample.fell"
+      ],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "gdb"
+    }
+  ]
+}
