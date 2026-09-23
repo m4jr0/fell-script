@@ -1,7 +1,6 @@
-#include <iostream>
+#include "core/logger.h"
 
-int main()
-{
-    std::cout << "fell script\n";
-    return 0;
+int main() {
+  fell::Logger::Info("fell script");
+  return 0;
 }

@@ -6,7 +6,12 @@ project(Fell
 )
 
 add_executable(fell
+    src/core/logger.cc
     tools/fell/main.cc
+)
+
+target_include_directories(fell PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_compile_features(fell PRIVATE cxx_std_20)
