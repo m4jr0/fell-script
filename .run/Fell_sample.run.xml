@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false"
+                 name="Fell - Sample"
+                 type="CMakeRunConfiguration"
+                 factoryName="Application">
+    <option name="TARGET_NAME" value="fell" />
+    <option name="CONFIG_NAME" value="" />
+    <option name="RUN_TARGET_PROJECT_NAME" value="fell" />
+    <option name="RUN_TARGET_NAME" value="fell" />
+    <option name="PROGRAM_PARAMS" value="sample.fell" />
+    <option name="WORKING_DIR" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="CMake.BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>

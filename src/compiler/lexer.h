@@ -13,7 +13,11 @@ class Lexer {
   Token NextToken();
 
  private:
-  Token TokenizeIntegerLiteral();
+  bool Consume(StringView text);
+
+  Token MakeToken(TokenType type, usize start) const;
+
+  Token TokenizeNumber();
 
   StringView source_;
   usize position_{0};

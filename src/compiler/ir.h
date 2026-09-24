@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler/type.h"
 #include "core/types.h"
 #include "core/vector.h"
 
@@ -10,18 +11,29 @@ struct IrValueId {
 };
 
 enum class IrOpcode {
-  kConstantS32,
-  kAddS32,
-  kSubtractS32,
+  kConstant,
+  kConvert,
+  kAdd,
+  kSubtract,
   kReturn,
 };
 
-struct IrConstantS32 {
+struct IrConstant {
   IrValueId destination;
-  s32 value;
+
+  union {
+    s64 s64_value;
+    u64 u64_value;
+    f64 f64_value;
+  };
 };
 
-struct IrBinaryS32 {
+struct IrConvert {
+  IrValueId destination;
+  IrValueId source;
+};
+
+struct IrBinary {
   IrValueId destination;
   IrValueId left;
   IrValueId right;
@@ -35,15 +47,22 @@ struct IrInstruction {
   IrOpcode opcode;
 
   union {
-    IrConstantS32 constant_s32;
-    IrBinaryS32 binary_s32;
+    IrConstant constant;
+    IrConvert convert;
+    IrBinary binary;
     IrReturn return_;
   };
 };
 
+struct IrValue {
+  Type type;
+};
+
 struct IrProgram {
   Vector<IrInstruction> instructions;
-  u32 value_count{0};
+  Vector<IrValue> values;
 };
+
+const IrValue& GetIrValue(const IrProgram& program, IrValueId id);
 
 }  // namespace fell

@@ -43,10 +43,13 @@ add_library(fell_compiler
     src/compiler/ast.cc
     src/compiler/bytecode_compiler.cc
     src/compiler/compiler.cc
+    src/compiler/diagnostic.cc
+    src/compiler/ir.cc
     src/compiler/ir_builder.cc
     src/compiler/lexer.cc
     src/compiler/parser.cc
     src/compiler/semantic_analyzer.cc
+    src/compiler/type.cc
 )
 
 target_include_directories(fell_compiler PUBLIC
@@ -60,6 +63,7 @@ target_link_libraries(fell_compiler PUBLIC
 fell_configure_target(fell_compiler)
 
 add_library(fell_runtime
+    src/runtime/value.cc
     src/runtime/vm.cc
 )
 

@@ -37,6 +37,7 @@ class Parser {
   Expression* ParsePrecedence(Precedence precedence);
 
   Expression* ParseIntegerLiteral();
+  Expression* ParseFloatLiteral();
   Expression* ParseBinary(Expression* left);
 
   Statement* ParseStatement();

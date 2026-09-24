@@ -1,5 +1,8 @@
 #include "compiler/parser.h"
 
+#include <charconv>
+#include <system_error>
+
 #include "core/assert.h"
 #include "core/core.h"
 
@@ -58,6 +61,13 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
       // kIntegerLiteral
       {
           .prefix = &Parser::ParseIntegerLiteral,
+          .infix = nullptr,
+          .precedence = Precedence::kNone,
+      },
+
+      // kFloatLiteral
+      {
+          .prefix = &Parser::ParseFloatLiteral,
           .infix = nullptr,
           .precedence = Precedence::kNone,
       },
@@ -150,7 +160,74 @@ Expression* Parser::ParsePrecedence(Precedence precedence) {
 }
 
 Expression* Parser::ParseIntegerLiteral() {
-  return ast_.CreateIntegerLiteralExpression(previous_.value);
+  StringView lexeme{previous_.lexeme};
+
+  Type explicit_type{Type::kInvalid};
+
+  if (lexeme.ends_with("s8")) {
+    explicit_type = Type::kS8;
+    lexeme.remove_suffix(2);
+  } else if (lexeme.ends_with("s16")) {
+    explicit_type = Type::kS16;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with("s32")) {
+    explicit_type = Type::kS32;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with("s64")) {
+    explicit_type = Type::kS64;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with("u8")) {
+    explicit_type = Type::kU8;
+    lexeme.remove_suffix(2);
+  } else if (lexeme.ends_with("u16")) {
+    explicit_type = Type::kU16;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with("u32")) {
+    explicit_type = Type::kU32;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with("u64")) {
+    explicit_type = Type::kU64;
+    lexeme.remove_suffix(3);
+  }
+
+  u64 value{0};
+
+  const auto result{
+      std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value)};
+
+  if (result.ec != std::errc{} || result.ptr != lexeme.data() + lexeme.size()) {
+    return nullptr;
+  }
+
+  return ast_.CreateIntegerLiteralExpression(value, explicit_type);
+}
+
+Expression* Parser::ParseFloatLiteral() {
+  StringView lexeme{previous_.lexeme};
+
+  Type explicit_type{Type::kInvalid};
+
+  if (lexeme.ends_with("f32")) {
+    explicit_type = Type::kF32;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with("f64")) {
+    explicit_type = Type::kF64;
+    lexeme.remove_suffix(3);
+  } else if (lexeme.ends_with('f')) {
+    explicit_type = Type::kF32;
+    lexeme.remove_suffix(1);
+  }
+
+  f64 value{0.0};
+
+  const auto result{
+      std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value)};
+
+  if (result.ec != std::errc{} || result.ptr != lexeme.data() + lexeme.size()) {
+    return nullptr;
+  }
+
+  return ast_.CreateFloatLiteralExpression(value, explicit_type);
 }
 
 Expression* Parser::ParseBinary(Expression* left) {
