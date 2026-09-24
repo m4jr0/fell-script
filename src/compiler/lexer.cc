@@ -13,42 +13,84 @@ Token Lexer::NextToken() {
   }
 
   if (position_ == source_.size()) {
-    return {TokenType::kEndOfFile, 0};
+    return MakeToken(TokenType::kEndOfFile, position_);
   }
 
+  const auto start{position_};
   const char character{source_[position_]};
 
   switch (character) {
     case '+':
       ++position_;
-      return {TokenType::kPlus, 0};
+      return MakeToken(TokenType::kPlus, start);
 
     case '-':
       ++position_;
-      return {TokenType::kMinus, 0};
+      return MakeToken(TokenType::kMinus, start);
 
     case ';':
       ++position_;
-      return {TokenType::kSemicolon, 0};
+      return MakeToken(TokenType::kSemicolon, start);
   }
 
   if (IsDigit(character)) {
-    return TokenizeIntegerLiteral();
+    return TokenizeNumber();
   }
 
   ++position_;
-  return {TokenType::kInvalid, 0};
+  return MakeToken(TokenType::kInvalid, start);
 }
 
-Token Lexer::TokenizeIntegerLiteral() {
-  s32 value{0};
+bool Lexer::Consume(StringView text) {
+  if (source_.substr(position_, text.size()) != text) {
+    return false;
+  }
+
+  position_ += text.size();
+  return true;
+}
+
+Token Lexer::MakeToken(TokenType type, usize start) const {
+  return {
+      .type = type,
+      .lexeme = source_.substr(start, position_ - start),
+  };
+}
+
+Token Lexer::TokenizeNumber() {
+  const auto start{position_};
 
   while (position_ < source_.size() && IsDigit(source_[position_])) {
-    value = value * 10 + (source_[position_] - '0');
     ++position_;
   }
 
-  return {TokenType::kIntegerLiteral, value};
+  auto type{TokenType::kIntegerLiteral};
+
+  if (position_ + 1 < source_.size() && source_[position_] == '.' &&
+      IsDigit(source_[position_ + 1])) {
+    type = TokenType::kFloatLiteral;
+    ++position_;
+
+    while (position_ < source_.size() && IsDigit(source_[position_])) {
+      ++position_;
+    }
+  }
+
+  if (type == TokenType::kIntegerLiteral) {
+    if (Consume("f32") || Consume("f64") || Consume("f")) {
+      type = TokenType::kFloatLiteral;
+    } else if (!Consume("s8") && !Consume("s16") && !Consume("s32") &&
+               !Consume("s64") && !Consume("u8") && !Consume("u16") &&
+               !Consume("u32")) {
+      Consume("u64");
+    }
+  } else {
+    if (!Consume("f32") && !Consume("f64")) {
+      Consume("f");
+    }
+  }
+
+  return MakeToken(type, start);
 }
 
 }  // namespace fell

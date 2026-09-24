@@ -1,11 +1,14 @@
 #pragma once
 
+#include "core/string.h"
 #include "core/types.h"
 
 namespace fell {
 
 enum class TokenType {
   kIntegerLiteral,
+  kFloatLiteral,
+
   kPlus,
   kMinus,
   kSemicolon,
@@ -17,7 +20,7 @@ enum class TokenType {
 
 struct Token {
   TokenType type{TokenType::kInvalid};
-  s32 value{0};
+  StringView lexeme{};
 };
 
 }  // namespace fell

@@ -1,5 +1,7 @@
 #include "compiler/compiler.h"
 
+#include <utility>
+
 #include "compiler/bytecode_compiler.h"
 #include "compiler/ir_builder.h"
 #include "compiler/lexer.h"
@@ -8,15 +10,7 @@
 
 namespace fell {
 
-bool CompileResult::Succeeded() const {
-  for (const Diagnostic& diagnostic : diagnostics) {
-    if (diagnostic.severity == DiagnosticSeverity::kError) {
-      return false;
-    }
-  }
-
-  return true;
-}
+bool CompileResult::Succeeded() const { return !HasErrors(diagnostics); }
 
 CompileResult Compiler::Compile(StringView source) {
   Lexer lexer{source};
@@ -71,16 +65,23 @@ CompileResult Compiler::CompileExpression(StringView source) {
 
 CompileResult Compiler::CompileUnit(const CompilationUnit& unit) {
   SemanticAnalyzer semantic_analyzer{};
-  const auto semantics{semantic_analyzer.Analyze(unit)};
+  auto semantic_result{semantic_analyzer.Analyze(unit)};
+
+  if (HasErrors(semantic_result.diagnostics)) {
+    return {
+        .program = {},
+        .diagnostics = std::move(semantic_result.diagnostics),
+    };
+  }
 
   IrBuilder ir_builder{};
-  const auto ir{ir_builder.Build(unit, semantics)};
+  const auto ir{ir_builder.Build(unit, semantic_result.model)};
 
   BytecodeCompiler bytecode_compiler{};
 
   return {
       .program = bytecode_compiler.Compile(ir),
-      .diagnostics = {},
+      .diagnostics = std::move(semantic_result.diagnostics),
   };
 }
 

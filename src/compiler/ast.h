@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler/type.h"
 #include "core/memory.h"
 #include "core/types.h"
 #include "core/vector.h"
@@ -17,6 +18,7 @@ struct ExpressionId {
 
 enum class ExpressionKind {
   kIntegerLiteral,
+  kFloatLiteral,
   kBinary,
 };
 
@@ -28,8 +30,16 @@ struct BinaryExpression {
   Expression* right;
 };
 
+// No negatives.
+// They will be handled with the unary minus operator.
 struct IntegerLiteralExpression {
-  s32 value;
+  u64 value;
+  Type explicit_type;
+};
+
+struct FloatLiteralExpression {
+  f64 value;
+  Type explicit_type;
 };
 
 struct Expression {
@@ -38,6 +48,7 @@ struct Expression {
 
   union {
     IntegerLiteralExpression integer_literal;
+    FloatLiteralExpression float_literal;
     BinaryExpression binary;
   };
 };
@@ -69,7 +80,8 @@ struct CompilationUnit {
 
 class Ast {
  public:
-  Expression* CreateIntegerLiteralExpression(s32 value);
+  Expression* CreateIntegerLiteralExpression(u64 value, Type explicit_type);
+  Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type);
 
   Expression* CreateBinaryExpression(Expression* left, BinaryOperator op,
                                      Expression* right);

@@ -3,25 +3,28 @@
 #include <sstream>
 
 #include "compiler/compiler.h"
+#include "compiler/diagnostic.h"
 #include "core/logger.h"
 #include "core/string.h"
+#include "runtime/value.h"
 #include "runtime/vm.h"
 
 namespace {
 
 int ExecuteCompileResult(const fell::CompileResult& compile_result) {
-  if (!compile_result.Succeeded()) {
-    for (const fell::Diagnostic& diagnostic : compile_result.diagnostics) {
-      std::cerr << "error: " << diagnostic.message << '\n';
-    }
+  for (const fell::Diagnostic& diagnostic : compile_result.diagnostics) {
+    std::cerr << fell::ToString(diagnostic.severity) << ": "
+              << diagnostic.message << '\n';
+  }
 
+  if (!compile_result.Succeeded()) {
     return 1;
   }
 
   fell::Vm vm{};
-  const auto result{vm.Execute(compile_result.program)};
+  const fell::Value result{vm.Execute(compile_result.program)};
 
-  std::cout << result << '\n';
+  std::cout << fell::ToString(result) << '\n';
   return 0;
 }
 

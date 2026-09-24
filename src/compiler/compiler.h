@@ -2,20 +2,11 @@
 
 #include "bytecode/bytecode.h"
 #include "compiler/ast.h"
+#include "compiler/diagnostic.h"
 #include "core/string.h"
 #include "core/vector.h"
 
 namespace fell {
-
-enum class DiagnosticSeverity {
-  kError,
-  kWarning,
-};
-
-struct Diagnostic {
-  DiagnosticSeverity severity;
-  String message;
-};
 
 struct CompileResult {
   BytecodeModule program;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compiler/ast.h"
+#include "compiler/diagnostic.h"
 #include "compiler/type.h"
 
 namespace fell {
@@ -21,14 +22,21 @@ class SemanticModel {
   Vector<ExpressionSemantics> expressions_;
 };
 
+struct SemanticResult {
+  SemanticModel model;
+  Vector<Diagnostic> diagnostics;
+};
+
 class SemanticAnalyzer {
  public:
-  SemanticModel Analyze(const CompilationUnit& unit);
+  SemanticResult Analyze(const CompilationUnit& unit);
 
  private:
-  void AnalyzeStatement(const Statement& statement, SemanticModel& model);
+  static Type GetIntegerLiteralType(const IntegerLiteralExpression& literal);
+  static Type GetFloatLiteralType(const FloatLiteralExpression& literal);
 
-  void AnalyzeExpression(const Expression& expression, SemanticModel& model);
+  void AnalyzeStatement(const Statement& statement, SemanticResult& result);
+  void AnalyzeExpression(const Expression& expression, SemanticResult& result);
 };
 
 }  // namespace fell
