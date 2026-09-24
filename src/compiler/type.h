@@ -3,6 +3,7 @@
 namespace fell {
 
 enum class Type {
+  kInvalid,
   kS32,
 };
 

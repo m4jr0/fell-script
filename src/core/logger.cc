@@ -24,7 +24,7 @@ void DefaultLogSink(LogLevel level, StringView message) {
   std::cerr << message << '\n';
 }
 
-LogSink log_sink = &DefaultLogSink;
+auto log_sink{&DefaultLogSink};
 
 }  // namespace
 

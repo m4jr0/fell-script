@@ -7,7 +7,7 @@ namespace fell {
 
 class BytecodeCompiler {
  public:
-  Program Compile(const IrProgram& ir);
+  BytecodeModule Compile(const IrProgram& ir);
 };
 
 }  // namespace fell

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compiler/token.h"
+#include "core/core.h"
 #include "core/string.h"
 
 namespace fell {
@@ -12,8 +13,10 @@ class Lexer {
   Token NextToken();
 
  private:
+  Token TokenizeIntegerLiteral();
+
   StringView source_;
-  std::size_t position_ = 0;
+  usize position_{0};
 };
 
 }  // namespace fell

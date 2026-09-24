@@ -5,14 +5,30 @@
 
 namespace fell {
 
-struct TypedIntegerExpression {
-  s32 value;
-  Type type;
+struct ExpressionSemantics {
+  Type type{Type::kInvalid};
+};
+
+class SemanticModel {
+ public:
+  const ExpressionSemantics& Get(const Expression& expression) const;
+
+ private:
+  friend class SemanticAnalyzer;
+
+  void Set(const Expression& expression, ExpressionSemantics semantics);
+
+  Vector<ExpressionSemantics> expressions_;
 };
 
 class SemanticAnalyzer {
  public:
-  TypedIntegerExpression Analyze(const IntegerExpression& expression);
+  SemanticModel Analyze(const CompilationUnit& unit);
+
+ private:
+  void AnalyzeStatement(const Statement& statement, SemanticModel& model);
+
+  void AnalyzeExpression(const Expression& expression, SemanticModel& model);
 };
 
 }  // namespace fell

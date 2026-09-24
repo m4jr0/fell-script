@@ -19,32 +19,64 @@ bool CompileResult::Succeeded() const {
 }
 
 CompileResult Compiler::Compile(StringView source) {
-  Lexer lexer(source);
-  Parser parser(lexer);
+  Lexer lexer{source};
 
-  IntegerExpression expression;
+  Ast ast{};
+  Parser parser{lexer, ast};
 
-  if (!parser.ParseExpression(expression)) {
+  CompilationUnit unit{};
+
+  if (!parser.ParseCompilationUnit(unit) || unit.statements.empty()) {
     return {
         .program = {},
         .diagnostics =
             {
                 {
                     .severity = DiagnosticSeverity::kError,
-                    .message = "expected a single integer literal",
+                    .message = "expected a valid compilation unit",
                 },
             },
     };
   }
 
-  SemanticAnalyzer semantic_analyzer;
-  const TypedIntegerExpression typed_expression =
-      semantic_analyzer.Analyze(expression);
+  return CompileUnit(unit);
+}
 
-  IrBuilder ir_builder;
-  const IrProgram ir = ir_builder.Build(typed_expression);
+CompileResult Compiler::CompileExpression(StringView source) {
+  Lexer lexer{source};
 
-  BytecodeCompiler bytecode_compiler;
+  Ast ast{};
+  Parser parser{lexer, ast};
+
+  Expression* expression{parser.ParseReplExpression()};
+
+  if (expression == nullptr) {
+    return {
+        .program = {},
+        .diagnostics =
+            {
+                {
+                    .severity = DiagnosticSeverity::kError,
+                    .message = "expected a valid expression",
+                },
+            },
+    };
+  }
+
+  CompilationUnit unit{};
+  unit.statements.push_back(ast.CreateExpressionStatement(expression));
+
+  return CompileUnit(unit);
+}
+
+CompileResult Compiler::CompileUnit(const CompilationUnit& unit) {
+  SemanticAnalyzer semantic_analyzer{};
+  const auto semantics{semantic_analyzer.Analyze(unit)};
+
+  IrBuilder ir_builder{};
+  const auto ir{ir_builder.Build(unit, semantics)};
+
+  BytecodeCompiler bytecode_compiler{};
 
   return {
       .program = bytecode_compiler.Compile(ir),

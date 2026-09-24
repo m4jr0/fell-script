@@ -7,12 +7,10 @@ namespace fell {
 
 class Vm {
  public:
-  s32 Execute(const Program& program);
+  s32 Execute(const BytecodeModule& program);
 
  private:
-  static constexpr u16 kMaxRegisterCount = 256;
-
-  s32 registers_[kMaxRegisterCount] = {};
+  s32 registers_[kMaxRegisterCount]{};
 };
 
 }  // namespace fell

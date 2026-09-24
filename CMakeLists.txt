@@ -40,6 +40,7 @@ target_include_directories(fell_core PUBLIC
 fell_configure_target(fell_core)
 
 add_library(fell_compiler
+    src/compiler/ast.cc
     src/compiler/bytecode_compiler.cc
     src/compiler/compiler.cc
     src/compiler/ir_builder.cc

@@ -9,10 +9,7 @@
 
 namespace {
 
-int Execute(fell::StringView source) {
-  fell::Compiler compiler;
-  const fell::CompileResult compile_result = compiler.Compile(source);
-
+int ExecuteCompileResult(const fell::CompileResult& compile_result) {
   if (!compile_result.Succeeded()) {
     for (const fell::Diagnostic& diagnostic : compile_result.diagnostics) {
       std::cerr << "error: " << diagnostic.message << '\n';
@@ -21,29 +18,39 @@ int Execute(fell::StringView source) {
     return 1;
   }
 
-  fell::Vm vm;
-  const fell::s32 result = vm.Execute(compile_result.program);
+  fell::Vm vm{};
+  const auto result{vm.Execute(compile_result.program)};
 
   std::cout << result << '\n';
   return 0;
 }
 
+int Execute(fell::StringView source) {
+  fell::Compiler compiler{};
+  return ExecuteCompileResult(compiler.Compile(source));
+}
+
+int ExecuteExpression(fell::StringView source) {
+  fell::Compiler compiler{};
+  return ExecuteCompileResult(compiler.CompileExpression(source));
+}
+
 int RunFile(const char* path) {
-  std::ifstream file(path);
+  std::ifstream file{path};
 
   if (!file) {
     fell::Logger::Error("failed to open source file");
     return 1;
   }
 
-  std::ostringstream stream;
+  std::ostringstream stream{};
   stream << file.rdbuf();
 
   return Execute(stream.str());
 }
 
 int RunRepl() {
-  fell::String line;
+  fell::String line{};
 
   while (true) {
     std::cout << "fell> ";
@@ -57,7 +64,7 @@ int RunRepl() {
       continue;
     }
 
-    Execute(line);
+    ExecuteExpression(line);
   }
 
   return 0;

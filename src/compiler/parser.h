@@ -7,12 +7,45 @@ namespace fell {
 
 class Parser {
  public:
-  explicit Parser(Lexer& lexer);
+  Parser(Lexer& lexer, Ast& ast);
 
-  bool ParseExpression(IntegerExpression& expression);
+  bool ParseCompilationUnit(CompilationUnit& unit);
+  Expression* ParseReplExpression();
 
  private:
+  enum class Precedence {
+    kNone,
+    kTerm,
+  };
+
+  using PrefixParseFunction = Expression* (Parser::*)();
+  using InfixParseFunction = Expression* (Parser::*)(Expression * left);
+
+  struct ParseRule {
+    PrefixParseFunction prefix;
+    InfixParseFunction infix;
+    Precedence precedence;
+  };
+
+  static const ParseRule& GetRule(TokenType type);
+
+  void Advance();
+  bool Match(TokenType type);
+  bool Check(TokenType type) const;
+
+  Expression* ParseExpression();
+  Expression* ParsePrecedence(Precedence precedence);
+
+  Expression* ParseIntegerLiteral();
+  Expression* ParseBinary(Expression* left);
+
+  Statement* ParseStatement();
+
+  Token current_;
+  Token previous_;
+
   Lexer& lexer_;
+  Ast& ast_;
 };
 
 }  // namespace fell

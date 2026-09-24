@@ -1,0 +1,18 @@
+BasedOnStyle: Google
+
+Language: Cpp
+Standard: c++20
+
+UseTab: Never
+IndentWidth: 2
+TabWidth: 2
+
+ColumnLimit: 80
+
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+InsertBraces: false

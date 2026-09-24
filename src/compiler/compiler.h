@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bytecode/bytecode.h"
+#include "compiler/ast.h"
 #include "core/string.h"
 #include "core/vector.h"
 
@@ -17,7 +18,7 @@ struct Diagnostic {
 };
 
 struct CompileResult {
-  Program program;
+  BytecodeModule program;
   Vector<Diagnostic> diagnostics;
 
   bool Succeeded() const;
@@ -26,6 +27,10 @@ struct CompileResult {
 class Compiler {
  public:
   CompileResult Compile(StringView source);
+  CompileResult CompileExpression(StringView source);
+
+ private:
+  CompileResult CompileUnit(const CompilationUnit& unit);
 };
 
 }  // namespace fell

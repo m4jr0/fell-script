@@ -1,31 +1,76 @@
 #include "compiler/bytecode_compiler.h"
 
-namespace fell {
+#include "core/assert.h"
+#include "core/core.h"
 
-Program BytecodeCompiler::Compile(const IrProgram& ir) {
-  Program program;
+namespace fell {
+namespace {
+RegisterId ToRegister(IrValueId value) {
+  FELL_ASSERT(value.value < kMaxRegisterCount);
+  return static_cast<RegisterId>(value.value);
+}
+}  // namespace
+
+BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
+  FELL_ASSERT(ir.value_count <= kMaxRegisterCount);
+
+  BytecodeModule module{
+      .register_count = static_cast<u16>(ir.value_count),
+  };
 
   for (const IrInstruction& instruction : ir.instructions) {
     switch (instruction.opcode) {
       case IrOpcode::kConstantS32:
-        program.instructions.push_back({
+        module.instructions.push_back({
             .opcode = Opcode::kLoadImmediateS32,
-            .destination = static_cast<u8>(instruction.destination),
-            .immediate = instruction.immediate,
+            .load_immediate_s32 =
+                {
+                    .destination =
+                        ToRegister(instruction.constant_s32.destination),
+                    .value = instruction.constant_s32.value,
+                },
+        });
+        break;
+
+      case IrOpcode::kAddS32:
+        module.instructions.push_back({
+            .opcode = Opcode::kAddS32,
+            .binary_s32 =
+                {
+                    .destination =
+                        ToRegister(instruction.binary_s32.destination),
+                    .left = ToRegister(instruction.binary_s32.left),
+                    .right = ToRegister(instruction.binary_s32.right),
+                },
+        });
+        break;
+
+      case IrOpcode::kSubtractS32:
+        module.instructions.push_back({
+            .opcode = Opcode::kSubtractS32,
+            .binary_s32 =
+                {
+                    .destination =
+                        ToRegister(instruction.binary_s32.destination),
+                    .left = ToRegister(instruction.binary_s32.left),
+                    .right = ToRegister(instruction.binary_s32.right),
+                },
         });
         break;
 
       case IrOpcode::kReturn:
-        program.instructions.push_back({
+        module.instructions.push_back({
             .opcode = Opcode::kReturn,
-            .destination = static_cast<u8>(instruction.destination),
-            .immediate = 0,
+            .return_ =
+                {
+                    .source = ToRegister(instruction.return_.value),
+                },
         });
         break;
     }
   }
 
-  return program;
+  return module;
 }
 
 }  // namespace fell
