@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/string.h"
 #include "core/types.h"
 
 namespace fell {
@@ -26,5 +27,7 @@ bool IsNumericType(Type type);
 bool CanImplicitlyConvert(Type from, Type to);
 Type FindCommonNumericType(Type left, Type right);
 bool CanRepresentInteger(Type type, u64 value);
+
+StringView ToString(Type type);
 
 }  // namespace fell

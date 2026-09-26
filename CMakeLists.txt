@@ -44,11 +44,13 @@ add_library(fell_compiler
     src/compiler/bytecode_compiler.cc
     src/compiler/compiler.cc
     src/compiler/diagnostic.cc
+    src/compiler/dump.cc
     src/compiler/ir.cc
     src/compiler/ir_builder.cc
     src/compiler/lexer.cc
     src/compiler/parser.cc
     src/compiler/semantic_analyzer.cc
+    src/compiler/token.cc
     src/compiler/type.cc
 )
 
@@ -63,6 +65,8 @@ target_link_libraries(fell_compiler PUBLIC
 fell_configure_target(fell_compiler)
 
 add_library(fell_runtime
+    src/bytecode/dump.cc
+    src/bytecode/serialization.cc
     src/runtime/value.cc
     src/runtime/vm.cc
 )
@@ -78,7 +82,12 @@ target_link_libraries(fell_runtime PUBLIC
 fell_configure_target(fell_runtime)
 
 add_executable(fell
+    tools/fell/command_line.cc
     tools/fell/main.cc
+)
+
+target_include_directories(fell PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/fell
 )
 
 target_link_libraries(fell PRIVATE

@@ -7,7 +7,8 @@ namespace fell {
 
 class IrBuilder {
  public:
-  IrProgram Build(const CompilationUnit& unit, const SemanticModel& semantics);
+  IrProgram Build(const CompilationUnit& unit, const SemanticModel& semantics,
+                  bool return_last_expression = false);
 
  private:
   IrValueId BuildExpression(const Expression& expression,

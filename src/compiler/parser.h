@@ -5,12 +5,17 @@
 
 namespace fell {
 
+struct ReplParseResult {
+  bool succeeded{false};
+  bool has_result{false};
+};
+
 class Parser {
  public:
   Parser(Lexer& lexer, Ast& ast);
 
   bool ParseCompilationUnit(CompilationUnit& unit);
-  Expression* ParseReplExpression();
+  ReplParseResult ParseReplInput(CompilationUnit& unit);
 
  private:
   enum class Precedence {

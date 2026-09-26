@@ -23,4 +23,6 @@ struct Token {
   StringView lexeme{};
 };
 
+StringView ToString(TokenType type);
+
 }  // namespace fell

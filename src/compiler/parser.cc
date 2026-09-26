@@ -1,7 +1,6 @@
 #include "compiler/parser.h"
 
 #include <charconv>
-#include <system_error>
 
 #include "core/assert.h"
 #include "core/core.h"
@@ -13,10 +12,8 @@ BinaryOperator GetBinaryOperator(TokenType type) {
   switch (type) {
     case TokenType::kPlus:
       return BinaryOperator::kAdd;
-
     case TokenType::kMinus:
       return BinaryOperator::kSubtract;
-
     default:
       FELL_UNREACHABLE();
   }
@@ -29,7 +26,6 @@ Parser::Parser(Lexer& lexer, Ast& ast) : lexer_(lexer), ast_(ast) { Advance(); }
 bool Parser::ParseCompilationUnit(CompilationUnit& unit) {
   while (!Check(TokenType::kEndOfFile)) {
     auto* statement{ParseStatement()};
-
     if (statement == nullptr) {
       return false;
     }
@@ -40,76 +36,57 @@ bool Parser::ParseCompilationUnit(CompilationUnit& unit) {
   return true;
 }
 
-Expression* Parser::ParseReplExpression() {
-  Expression* expression{ParseExpression()};
+ReplParseResult Parser::ParseReplInput(CompilationUnit& unit) {
+  bool has_result{false};
 
-  if (expression == nullptr) {
-    return nullptr;
+  while (!Check(TokenType::kEndOfFile)) {
+    Expression* expression{ParseExpression()};
+    if (expression == nullptr) {
+      return {};
+    }
+
+    const bool terminated{Match(TokenType::kSemicolon)};
+    if (!terminated && !Check(TokenType::kEndOfFile)) {
+      return {};
+    }
+
+    unit.statements.push_back(ast_.CreateExpressionStatement(expression));
+    has_result = !terminated;
   }
 
-  Match(TokenType::kSemicolon);
-
-  if (!Check(TokenType::kEndOfFile)) {
-    return nullptr;
-  }
-
-  return expression;
+  return {
+      .succeeded = !unit.statements.empty(),
+      .has_result = has_result,
+  };
 }
 
 const Parser::ParseRule& Parser::GetRule(TokenType type) {
+  // clang-format off
   static const ParseRule kRules[]{
-      // kIntegerLiteral
-      {
-          .prefix = &Parser::ParseIntegerLiteral,
-          .infix = nullptr,
-          .precedence = Precedence::kNone,
-      },
+    // kIntegerLiteral
+    {.prefix = &Parser::ParseIntegerLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
-      // kFloatLiteral
-      {
-          .prefix = &Parser::ParseFloatLiteral,
-          .infix = nullptr,
-          .precedence = Precedence::kNone,
-      },
+    // kFloatLiteral
+    {.prefix = &Parser::ParseFloatLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
-      // kPlus
-      {
-          .prefix = nullptr,
-          .infix = &Parser::ParseBinary,
-          .precedence = Precedence::kTerm,
-      },
+    // kPlus
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kTerm},
 
-      // kMinus
-      {
-          .prefix = nullptr,
-          .infix = &Parser::ParseBinary,
-          .precedence = Precedence::kTerm,
-      },
+    // kMinus
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kTerm},
 
-      // kSemicolon
-      {
-          .prefix = nullptr,
-          .infix = nullptr,
-          .precedence = Precedence::kNone,
-      },
+    // kSemicolon
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
-      // kEndOfFile
-      {
-          .prefix = nullptr,
-          .infix = nullptr,
-          .precedence = Precedence::kNone,
-      },
+    // kEndOfFile
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
-      // kInvalid
-      {
-          .prefix = nullptr,
-          .infix = nullptr,
-          .precedence = Precedence::kNone,
-      },
+    // kInvalid
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
   };
+  // clang-format on
 
   static_assert(std::size(kRules) == static_cast<usize>(TokenType::kCount));
-
   return kRules[static_cast<usize>(type)];
 }
 
@@ -135,7 +112,6 @@ Expression* Parser::ParseExpression() {
 
 Expression* Parser::ParsePrecedence(Precedence precedence) {
   Advance();
-
   const PrefixParseFunction prefix{GetRule(previous_.type).prefix};
 
   if (prefix == nullptr) {
@@ -146,7 +122,6 @@ Expression* Parser::ParsePrecedence(Precedence precedence) {
 
   while (precedence < GetRule(current_.type).precedence) {
     Advance();
-
     const auto infix{GetRule(previous_.type).infix};
 
     if (infix == nullptr) {
@@ -161,8 +136,7 @@ Expression* Parser::ParsePrecedence(Precedence precedence) {
 
 Expression* Parser::ParseIntegerLiteral() {
   StringView lexeme{previous_.lexeme};
-
-  Type explicit_type{Type::kInvalid};
+  auto explicit_type{Type::kInvalid};
 
   if (lexeme.ends_with("s8")) {
     explicit_type = Type::kS8;
@@ -191,7 +165,6 @@ Expression* Parser::ParseIntegerLiteral() {
   }
 
   u64 value{0};
-
   const auto result{
       std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value)};
 
@@ -204,8 +177,7 @@ Expression* Parser::ParseIntegerLiteral() {
 
 Expression* Parser::ParseFloatLiteral() {
   StringView lexeme{previous_.lexeme};
-
-  Type explicit_type{Type::kInvalid};
+  auto explicit_type{Type::kInvalid};
 
   if (lexeme.ends_with("f32")) {
     explicit_type = Type::kF32;
@@ -219,7 +191,6 @@ Expression* Parser::ParseFloatLiteral() {
   }
 
   f64 value{0.0};
-
   const auto result{
       std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value)};
 
@@ -233,7 +204,6 @@ Expression* Parser::ParseFloatLiteral() {
 Expression* Parser::ParseBinary(Expression* left) {
   const TokenType operator_type{previous_.type};
   const Precedence precedence{GetRule(operator_type).precedence};
-
   Expression* right{ParsePrecedence(precedence)};
 
   if (right == nullptr) {

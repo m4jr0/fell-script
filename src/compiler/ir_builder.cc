@@ -6,9 +6,9 @@
 namespace fell {
 
 IrProgram IrBuilder::Build(const CompilationUnit& unit,
-                           const SemanticModel& semantics) {
+                           const SemanticModel& semantics,
+                           bool return_last_expression) {
   IrProgram program{};
-
   IrValueId last_value{};
   bool has_value{false};
 
@@ -22,13 +22,10 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
     }
   }
 
-  if (has_value) {
+  if (return_last_expression && has_value) {
     program.instructions.push_back({
         .opcode = IrOpcode::kReturn,
-        .return_ =
-            {
-                .value = last_value,
-            },
+        .return_ = {.value = last_value},
     });
   }
 
@@ -42,59 +39,37 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
     case ExpressionKind::kIntegerLiteral: {
       const Type type{semantics.Get(expression).type};
       FELL_ASSERT(type != Type::kError);
-
-      const IrValueId destination{
-          AllocateValue(program, type),
-      };
-
+      const IrValueId destination{AllocateValue(program, type)};
       EmitIntegerConstant(program, destination,
                           expression.integer_literal.value, type);
-
       return destination;
     }
 
     case ExpressionKind::kFloatLiteral: {
       const Type type{semantics.Get(expression).type};
       FELL_ASSERT(type != Type::kError);
-
-      const IrValueId destination{
-          AllocateValue(program, type),
-      };
-
+      const IrValueId destination{AllocateValue(program, type)};
       EmitFloatConstant(program, destination, expression.float_literal.value,
                         type);
-
       return destination;
     }
 
     case ExpressionKind::kBinary: {
       const auto& binary{expression.binary};
-
-      IrValueId left{
-          BuildExpression(*binary.left, semantics, program),
-      };
-
-      IrValueId right{
-          BuildExpression(*binary.right, semantics, program),
-      };
+      IrValueId left{BuildExpression(*binary.left, semantics, program)};
+      IrValueId right{BuildExpression(*binary.right, semantics, program)};
 
       const Type result_type{semantics.Get(expression).type};
       FELL_ASSERT(result_type != Type::kError);
-
       left = ConvertIfNeeded(left, result_type, program);
       right = ConvertIfNeeded(right, result_type, program);
 
-      const IrValueId destination{
-          AllocateValue(program, result_type),
-      };
-
+      const IrValueId destination{AllocateValue(program, result_type)};
       IrOpcode opcode{};
-
       switch (binary.op) {
         case BinaryOperator::kAdd:
           opcode = IrOpcode::kAdd;
           break;
-
         case BinaryOperator::kSubtract:
           opcode = IrOpcode::kSubtract;
           break;
@@ -102,14 +77,8 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       program.instructions.push_back({
           .opcode = opcode,
-          .binary =
-              {
-                  .destination = destination,
-                  .left = left,
-                  .right = right,
-              },
+          .binary = {.destination = destination, .left = left, .right = right},
       });
-
       return destination;
     }
   }
@@ -119,41 +88,23 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
 IrValueId IrBuilder::AllocateValue(IrProgram& program, Type type) {
   FELL_ASSERT(program.values.size() < kMaxValue<u32>);
-
-  const IrValueId id{
-      .value = static_cast<u32>(program.values.size()),
-  };
-
-  program.values.push_back({
-      .type = type,
-  });
-
+  const IrValueId id{.value = static_cast<u32>(program.values.size())};
+  program.values.push_back({.type = type});
   return id;
 }
 
 IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
                                      IrProgram& program) {
-  const Type source_type{
-      GetIrValue(program, source).type,
-  };
-
+  const Type source_type{GetIrValue(program, source).type};
   if (source_type == destination_type) {
     return source;
   }
 
   FELL_ASSERT(CanImplicitlyConvert(source_type, destination_type));
-
-  const IrValueId destination{
-      AllocateValue(program, destination_type),
-  };
-
+  const IrValueId destination{AllocateValue(program, destination_type)};
   program.instructions.push_back({
       .opcode = IrOpcode::kConvert,
-      .convert =
-          {
-              .destination = destination,
-              .source = source,
-          },
+      .convert = {.destination = destination, .source = source},
   });
 
   return destination;
@@ -161,44 +112,33 @@ IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
 
 void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
                                     u64 value, Type type) {
-  IrConstant constant{
-      .destination = destination,
-      .s64_value = 0,
-  };
+  IrConstant constant{.destination = destination, .s64_value = 0};
 
   switch (type) {
     case Type::kS8:
       constant.s64_value = static_cast<s8>(value);
       break;
-
     case Type::kS16:
       constant.s64_value = static_cast<s16>(value);
       break;
-
     case Type::kS32:
       constant.s64_value = static_cast<s32>(value);
       break;
-
     case Type::kS64:
       constant.s64_value = static_cast<s64>(value);
       break;
-
     case Type::kU8:
       constant.u64_value = static_cast<u8>(value);
       break;
-
     case Type::kU16:
       constant.u64_value = static_cast<u16>(value);
       break;
-
     case Type::kU32:
       constant.u64_value = static_cast<u32>(value);
       break;
-
     case Type::kU64:
       constant.u64_value = value;
       break;
-
     case Type::kF32:
     case Type::kF64:
     case Type::kInvalid:
@@ -214,20 +154,15 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
 
 void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
                                   f64 value, Type type) {
-  IrConstant constant{
-      .destination = destination,
-      .s64_value = 0,
-  };
+  IrConstant constant{.destination = destination, .s64_value = 0};
 
   switch (type) {
     case Type::kF32:
       constant.f64_value = static_cast<f64>(static_cast<f32>(value));
       break;
-
     case Type::kF64:
       constant.f64_value = value;
       break;
-
     case Type::kS8:
     case Type::kS16:
     case Type::kS32:

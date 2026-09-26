@@ -107,25 +107,18 @@ bool CanRepresentInteger(Type type, u64 value) {
   switch (type) {
     case Type::kS8:
       return value <= static_cast<u64>(kMaxValue<s8>);
-
     case Type::kS16:
       return value <= static_cast<u64>(kMaxValue<s16>);
-
     case Type::kS32:
       return value <= static_cast<u64>(kMaxValue<s32>);
-
     case Type::kS64:
       return value <= static_cast<u64>(kMaxValue<s64>);
-
     case Type::kU8:
       return value <= kMaxValue<u8>;
-
     case Type::kU16:
       return value <= kMaxValue<u16>;
-
     case Type::kU32:
       return value <= kMaxValue<u32>;
-
     case Type::kU64:
       return true;
 
@@ -134,6 +127,37 @@ bool CanRepresentInteger(Type type, u64 value) {
     case Type::kF32:
     case Type::kF64:
       return false;
+  }
+
+  FELL_UNREACHABLE();
+}
+
+StringView ToString(Type type) {
+  switch (type) {
+    case Type::kInvalid:
+      return "invalid";
+    case Type::kError:
+      return "error";
+    case Type::kS8:
+      return "s8";
+    case Type::kS16:
+      return "s16";
+    case Type::kS32:
+      return "s32";
+    case Type::kS64:
+      return "s64";
+    case Type::kU8:
+      return "u8";
+    case Type::kU16:
+      return "u16";
+    case Type::kU32:
+      return "u32";
+    case Type::kU64:
+      return "u64";
+    case Type::kF32:
+      return "f32";
+    case Type::kF64:
+      return "f64";
   }
 
   FELL_UNREACHABLE();
