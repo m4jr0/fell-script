@@ -1,21 +1,25 @@
 #pragma once
 
 #include "compiler/ast.h"
+#include "compiler/diagnostic.h"
 #include "compiler/lexer.h"
+#include "core/vector.h"
 
 namespace fell {
 
-struct ReplParseResult {
-  bool succeeded{false};
+struct ParseResult {
+  Vector<Diagnostic> diagnostics;
   bool has_result{false};
+
+  bool Succeeded() const;
 };
 
 class Parser {
  public:
   Parser(Lexer& lexer, Ast& ast);
 
-  bool ParseCompilationUnit(CompilationUnit& unit);
-  ReplParseResult ParseReplInput(CompilationUnit& unit);
+  ParseResult ParseCompilationUnit(CompilationUnit& unit);
+  ParseResult ParseReplInput(CompilationUnit& unit);
 
  private:
   enum class Precedence {
@@ -40,6 +44,11 @@ class Parser {
   bool Match(TokenType type);
   bool Check(TokenType type) const;
 
+  void ErrorAt(const Token& token, StringView message);
+  void ErrorAtCurrent(StringView message);
+  void ErrorAtPrevious(StringView message);
+  void Synchronize();
+
   Expression* ParseExpression();
   Expression* ParsePrecedence(Precedence precedence);
 
@@ -57,6 +66,9 @@ class Parser {
 
   Lexer& lexer_;
   Ast& ast_;
+
+  Vector<Diagnostic> diagnostics_;
+  bool panic_mode_{false};
 };
 
 }  // namespace fell

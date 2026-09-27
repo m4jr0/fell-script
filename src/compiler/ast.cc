@@ -8,7 +8,7 @@
 
 namespace fell {
 
-Expression* Ast::CreateBooleanLiteralExpression(bool value) {
+Expression* Ast::CreateBooleanLiteralExpression(bool value, SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
   const ExpressionId id{
       .value = static_cast<u32>(expressions_.size()),
@@ -17,6 +17,7 @@ Expression* Ast::CreateBooleanLiteralExpression(bool value) {
   auto expression{MakeUnique<Expression>(Expression{
       .id = id,
       .kind = ExpressionKind::kBooleanLiteral,
+      .span = span,
       .boolean_literal =
           {
               .value = value,
@@ -29,7 +30,8 @@ Expression* Ast::CreateBooleanLiteralExpression(bool value) {
   return result;
 }
 
-Expression* Ast::CreateIntegerLiteralExpression(u64 value, Type explicit_type) {
+Expression* Ast::CreateIntegerLiteralExpression(u64 value, Type explicit_type,
+                                                SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
   const ExpressionId id{
       .value = static_cast<u32>(expressions_.size()),
@@ -38,6 +40,7 @@ Expression* Ast::CreateIntegerLiteralExpression(u64 value, Type explicit_type) {
   auto expression{MakeUnique<Expression>(Expression{
       .id = id,
       .kind = ExpressionKind::kIntegerLiteral,
+      .span = span,
       .integer_literal =
           {
               .value = value,
@@ -51,7 +54,8 @@ Expression* Ast::CreateIntegerLiteralExpression(u64 value, Type explicit_type) {
   return result;
 }
 
-Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type) {
+Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type,
+                                              SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
   const ExpressionId id{
       .value = static_cast<u32>(expressions_.size()),
@@ -60,6 +64,7 @@ Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type) {
   auto expression{MakeUnique<Expression>(Expression{
       .id = id,
       .kind = ExpressionKind::kFloatLiteral,
+      .span = span,
       .float_literal =
           {
               .value = value,
@@ -73,7 +78,8 @@ Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type) {
   return result;
 }
 
-Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand) {
+Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand,
+                                       SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
   const ExpressionId id{
       .value = static_cast<u32>(expressions_.size()),
@@ -82,6 +88,7 @@ Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand) {
   auto expression{MakeUnique<Expression>(Expression{
       .id = id,
       .kind = ExpressionKind::kUnary,
+      .span = span,
       .unary =
           {
               .op = op,
@@ -96,7 +103,7 @@ Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand) {
 }
 
 Expression* Ast::CreateBinaryExpression(Expression* left, BinaryOperator op,
-                                        Expression* right) {
+                                        Expression* right, SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
   const ExpressionId id{
       .value = static_cast<u32>(expressions_.size()),
@@ -105,6 +112,7 @@ Expression* Ast::CreateBinaryExpression(Expression* left, BinaryOperator op,
   auto expression{MakeUnique<Expression>(Expression{
       .id = id,
       .kind = ExpressionKind::kBinary,
+      .span = span,
       .binary =
           {
               .left = left,
@@ -119,7 +127,8 @@ Expression* Ast::CreateBinaryExpression(Expression* left, BinaryOperator op,
   return result;
 }
 
-Statement* Ast::CreateExpressionStatement(Expression* expression) {
+Statement* Ast::CreateExpressionStatement(Expression* expression,
+                                          SourceSpan span) {
   FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
 
   const StatementId id{
@@ -129,6 +138,7 @@ Statement* Ast::CreateExpressionStatement(Expression* expression) {
   auto statement{MakeUnique<Statement>(Statement{
       .id = id,
       .kind = StatementKind::kExpression,
+      .span = span,
       .expression =
           {
               .expression = expression,

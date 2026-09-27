@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler/source_location.h"
 #include "core/string.h"
 #include "core/types.h"
 
@@ -31,6 +32,7 @@ enum class TokenType {
 struct Token {
   TokenType type{TokenType::kInvalid};
   StringView lexeme{};
+  SourceSpan span{};
 };
 
 StringView ToString(TokenType type);

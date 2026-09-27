@@ -4,18 +4,11 @@
 #include <iostream>
 #include <optional>
 #include <sstream>
-#include <utility>
 
 #include "bytecode/dump.h"
 #include "bytecode/serialization.h"
-#include "compiler/bytecode_compiler.h"
 #include "compiler/compiler.h"
 #include "compiler/diagnostic.h"
-#include "compiler/dump.h"
-#include "compiler/ir_builder.h"
-#include "compiler/lexer.h"
-#include "compiler/parser.h"
-#include "compiler/semantic_analyzer.h"
 #include "core/span.h"
 #include "core/string.h"
 #include "core/vector.h"
@@ -25,6 +18,10 @@
 
 namespace fell::tool {
 namespace {
+
+inline constexpr int kExitSuccess{0};
+inline constexpr int kExitFailure{1};
+inline constexpr int kExitUsageError{2};
 
 void PrintHelp() {
   std::cout << "Fell " << kVersion << '\n'
@@ -48,7 +45,6 @@ void PrintHelp() {
 
 bool ReadTextFile(const char* path, String& output) {
   std::ifstream file{path};
-
   if (!file) {
     return false;
   }
@@ -61,14 +57,12 @@ bool ReadTextFile(const char* path, String& output) {
 
 bool ReadBinaryFile(const char* path, Vector<u8>& output) {
   std::ifstream file{path, std::ios::binary};
-
   if (!file) {
     return false;
   }
 
   file.seekg(0, std::ios::end);
   const auto size{file.tellg()};
-
   if (size < 0) {
     return false;
   }
@@ -86,7 +80,6 @@ bool ReadBinaryFile(const char* path, Vector<u8>& output) {
 
 bool WriteBinaryFile(const char* path, Span<const u8> data) {
   std::ofstream file{path, std::ios::binary};
-
   if (!file) {
     return false;
   }
@@ -101,6 +94,11 @@ bool WriteBinaryFile(const char* path, Span<const u8> data) {
 
 void PrintDiagnostics(Span<const Diagnostic> diagnostics) {
   for (const Diagnostic& diagnostic : diagnostics) {
+    if (diagnostic.span.has_value()) {
+      const SourceLocation& location{diagnostic.span->start};
+      std::cerr << location.line << ':' << location.column << ": ";
+    }
+
     std::cerr << ToString(diagnostic.severity) << ": " << diagnostic.message
               << '\n';
   }
@@ -126,22 +124,18 @@ bool ParseDumpOption(StringView argument, CompileOptions& options) {
     options.dumps.Set(CompileDump::kTokens);
     return true;
   }
-
   if (argument == "--dump-ast") {
     options.dumps.Set(CompileDump::kAst);
     return true;
   }
-
   if (argument == "--dump-ir") {
     options.dumps.Set(CompileDump::kIr);
     return true;
   }
-
   if (argument == "--dump-bytecode") {
     options.dumps.Set(CompileDump::kBytecode);
     return true;
   }
-
   if (argument == "--dump-all") {
     options.dumps.Set(CompileDump::kTokens);
     options.dumps.Set(CompileDump::kAst);
@@ -160,7 +154,6 @@ bool ParseDumpOptions(int argc, char* argv[], int first_argument,
       return false;
     }
   }
-
   return true;
 }
 
@@ -177,19 +170,18 @@ int RunSource(StringView source, const CompileOptions& options = {}) {
   PrintDiagnostics(result.diagnostics);
 
   if (!result.Succeeded()) {
-    return 1;
+    return kExitFailure;
   }
 
   ExecuteModule(result.program);
-  return 0;
+  return kExitSuccess;
 }
 
 int RunSourceFile(const char* path, const CompileOptions& options) {
   String source{};
-
   if (!ReadTextFile(path, source)) {
     std::cerr << "error: failed to open source file\n";
-    return 1;
+    return kExitFailure;
   }
 
   return RunSource(source, options);
@@ -220,22 +212,21 @@ int RunRepl(const CompileOptions& options = {}) {
       continue;
     }
 
-    const std::optional<Value> value{ExecuteModule(result.program)};
+    const std::optional value{ExecuteModule(result.program)};
     if (value.has_value()) {
       std::cout << ToString(*value) << '\n';
     }
   }
 
-  return 0;
+  return kExitSuccess;
 }
 
 int CompileFile(const char* input_path, const char* output_path,
                 const CompileOptions& options) {
   String source{};
-
   if (!ReadTextFile(input_path, source)) {
     std::cerr << "error: failed to open source file\n";
-    return 1;
+    return kExitFailure;
   }
 
   Compiler compiler{};
@@ -245,32 +236,29 @@ int CompileFile(const char* input_path, const char* output_path,
   PrintDiagnostics(result.diagnostics);
 
   if (!result.Succeeded()) {
-    return 1;
+    return kExitFailure;
   }
 
   const Vector<u8> bytecode{SerializeBytecode(result.program)};
-
   if (!WriteBinaryFile(output_path, bytecode)) {
     std::cerr << "error: failed to write bytecode file\n";
-    return 1;
+    return kExitFailure;
   }
 
-  return 0;
+  return kExitSuccess;
 }
 
 int RunBytecodeFile(const char* path, const CompileOptions& options) {
   Vector<u8> data{};
-
   if (!ReadBinaryFile(path, data)) {
     std::cerr << "error: failed to open bytecode file\n";
-    return 1;
+    return kExitFailure;
   }
 
   BytecodeReadResult result{DeserializeBytecode(data)};
-
   if (!result.Succeeded()) {
     std::cerr << "error: " << result.error << '\n';
-    return 1;
+    return kExitFailure;
   }
 
   if (options.dumps.Has(CompileDump::kBytecode)) {
@@ -278,7 +266,7 @@ int RunBytecodeFile(const char* path, const CompileOptions& options) {
   }
 
   ExecuteModule(result.module);
-  return 0;
+  return kExitSuccess;
 }
 
 int RunFile(const char* path, const CompileOptions& options) {
@@ -291,95 +279,41 @@ int RunFile(const char* path, const CompileOptions& options) {
   if (file_path.ends_with(".fellc")) {
     if (options.dumps.HasSourceDump()) {
       std::cerr << "error: source dump options require a Fell source file\n";
-      return 1;
+      return kExitUsageError;
     }
-
     return RunBytecodeFile(path, options);
   }
 
   std::cerr << "error: unsupported file type\n";
-  return 1;
-}
-
-bool ParseCompilationUnit(StringView source, Ast& ast, CompilationUnit& unit) {
-  Lexer lexer{source};
-  Parser parser{lexer, ast};
-  return parser.ParseCompilationUnit(unit) && !unit.statements.empty();
-}
-
-bool BuildIr(StringView source, IrProgram& ir,
-             Vector<Diagnostic>& diagnostics) {
-  Ast ast{};
-  CompilationUnit unit{};
-
-  if (!ParseCompilationUnit(source, ast, unit)) {
-    diagnostics.push_back({
-        .severity = DiagnosticSeverity::kError,
-        .message = "expected a valid compilation unit",
-    });
-    return false;
-  }
-
-  SemanticAnalyzer analyzer{};
-  auto semantic_result{analyzer.Analyze(unit)};
-  diagnostics = std::move(semantic_result.diagnostics);
-
-  if (HasErrors(diagnostics)) {
-    return false;
-  }
-
-  IrBuilder builder{};
-  ir = builder.Build(unit, semantic_result.model);
-  return true;
+  return kExitUsageError;
 }
 
 int DumpFile(StringView kind, const char* path) {
   String source{};
-
   if (!ReadTextFile(path, source)) {
     std::cerr << "error: failed to open source file\n";
-    return 1;
+    return kExitFailure;
   }
 
+  CompileOptions options{};
   if (kind == "tokens") {
-    std::cout << DumpTokens(source);
-    return 0;
+    options.dumps.Set(CompileDump::kTokens);
+  } else if (kind == "ast") {
+    options.dumps.Set(CompileDump::kAst);
+  } else if (kind == "ir") {
+    options.dumps.Set(CompileDump::kIr);
+  } else if (kind == "bytecode") {
+    options.dumps.Set(CompileDump::kBytecode);
+  } else {
+    std::cerr << "error: unknown dump kind '" << kind << "'\n";
+    return kExitUsageError;
   }
 
-  if (kind == "ast") {
-    Ast ast{};
-    CompilationUnit unit{};
-
-    if (!ParseCompilationUnit(source, ast, unit)) {
-      std::cerr << "error: expected a valid compilation unit\n";
-      return 1;
-    }
-
-    std::cout << DumpAst(unit);
-    return 0;
-  }
-
-  IrProgram ir{};
-  Vector<Diagnostic> diagnostics{};
-
-  if (!BuildIr(source, ir, diagnostics)) {
-    PrintDiagnostics(diagnostics);
-    return 1;
-  }
-
-  if (kind == "ir") {
-    std::cout << DumpIr(ir);
-    return 0;
-  }
-
-  if (kind == "bytecode") {
-    BytecodeCompiler compiler{};
-    std::cout << DumpBytecode(compiler.Compile(ir));
-    return 0;
-  }
-
-  std::cerr << "error: unknown dump kind '" << kind << "'\n";
-  return 1;
+  Compiler compiler{};
+  CompileResult result{compiler.Compile(source, options)};
+  PrintCompileDumps(result);
+  PrintDiagnostics(result.diagnostics);
+  return result.Succeeded() ? kExitSuccess : kExitFailure;
 }
 
 String DefaultOutputPath(StringView input) {
@@ -404,45 +338,41 @@ int RunCommandLine(int argc, char* argv[]) {
 
   if (command == "-h" || command == "--help") {
     PrintHelp();
-    return 0;
+    return kExitSuccess;
   }
 
   if (command == "--version") {
     std::cout << "Fell " << kVersion << '\n';
-    return 0;
+    return kExitSuccess;
   }
 
   if (command == "repl") {
     CompileOptions options{};
-
     if (!ParseDumpOptions(argc, argv, 2, options)) {
       std::cerr << "error: invalid repl option\n";
-      return 1;
+      return kExitUsageError;
     }
-
     return RunRepl(options);
   }
 
   if (command == "run") {
     if (argc < 3) {
       std::cerr << "usage: fell run <file> [dump options]\n";
-      return 1;
+      return kExitUsageError;
     }
 
     CompileOptions options{};
-
     if (!ParseDumpOptions(argc, argv, 3, options)) {
       std::cerr << "error: invalid run option\n";
-      return 1;
+      return kExitUsageError;
     }
-
     return RunFile(argv[2], options);
   }
 
   if (command == "compile") {
     if (argc < 3) {
       std::cerr << "usage: fell compile <file> [-o <file>] [dump options]\n";
-      return 1;
+      return kExitUsageError;
     }
 
     String output{DefaultOutputPath(argv[2])};
@@ -454,16 +384,15 @@ int RunCommandLine(int argc, char* argv[]) {
       if (argument == "-o") {
         if (index + 1 >= argc) {
           std::cerr << "error: expected output file after -o\n";
-          return 1;
+          return kExitUsageError;
         }
-
         output = argv[++index];
         continue;
       }
 
       if (!ParseDumpOption(argument, options)) {
         std::cerr << "error: invalid compile option '" << argument << "'\n";
-        return 1;
+        return kExitUsageError;
       }
     }
 
@@ -473,15 +402,14 @@ int RunCommandLine(int argc, char* argv[]) {
   if (command == "dump") {
     if (argc != 4) {
       std::cerr << "usage: fell dump <tokens|ast|ir|bytecode> <file>\n";
-      return 1;
+      return kExitUsageError;
     }
-
     return DumpFile(argv[2], argv[3]);
   }
 
   std::cerr << "error: unknown command '" << command << "'\n";
   std::cerr << "try 'fell --help' for usage\n";
-  return 1;
+  return kExitUsageError;
 }
 
 }  // namespace fell::tool

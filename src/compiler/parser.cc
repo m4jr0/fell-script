@@ -1,12 +1,22 @@
 #include "compiler/parser.h"
 
 #include <charconv>
+#include <utility>
 
 #include "core/assert.h"
 #include "core/core.h"
 
 namespace fell {
 namespace {
+
+SourceSpan MergeSpans(SourceSpan first, SourceSpan last) {
+  FELL_ASSERT(first.start.offset <= last.start.offset + last.length);
+
+  return {
+      .start = first.start,
+      .length = last.start.offset + last.length - first.start.offset,
+  };
+}
 
 UnaryOperator GetUnaryOperator(TokenType type) {
   switch (type) {
@@ -34,41 +44,65 @@ BinaryOperator GetBinaryOperator(TokenType type) {
 
 }  // namespace
 
+bool ParseResult::Succeeded() const { return !HasErrors(diagnostics); }
+
 Parser::Parser(Lexer& lexer, Ast& ast) : lexer_(lexer), ast_(ast) { Advance(); }
 
-bool Parser::ParseCompilationUnit(CompilationUnit& unit) {
+ParseResult Parser::ParseCompilationUnit(CompilationUnit& unit) {
   while (!Check(TokenType::kEndOfFile)) {
-    auto* statement{ParseStatement()};
-    if (statement == nullptr) {
-      return false;
-    }
+    Statement* const statement{ParseStatement()};
 
-    unit.statements.push_back(statement);
+    if (statement != nullptr) {
+      unit.statements.push_back(statement);
+    } else {
+      Synchronize();
+    }
   }
 
-  return true;
+  if (unit.statements.empty() && diagnostics_.empty()) {
+    ErrorAtCurrent("expected statement");
+  }
+
+  return {
+      .diagnostics = std::move(diagnostics_),
+  };
 }
 
-ReplParseResult Parser::ParseReplInput(CompilationUnit& unit) {
+ParseResult Parser::ParseReplInput(CompilationUnit& unit) {
   bool has_result{false};
 
   while (!Check(TokenType::kEndOfFile)) {
-    Expression* expression{ParseExpression()};
+    Expression* const expression{ParseExpression()};
+
     if (expression == nullptr) {
-      return {};
+      Synchronize();
+      has_result = false;
+      continue;
     }
 
     const bool terminated{Match(TokenType::kSemicolon)};
     if (!terminated && !Check(TokenType::kEndOfFile)) {
-      return {};
+      ErrorAtCurrent("expected ';' or end of input after expression");
+      Synchronize();
+      has_result = false;
+      continue;
     }
 
-    unit.statements.push_back(ast_.CreateExpressionStatement(expression));
+    const SourceSpan statement_span{
+        terminated ? MergeSpans(expression->span, previous_.span)
+                   : expression->span,
+    };
+    unit.statements.push_back(
+        ast_.CreateExpressionStatement(expression, statement_span));
     has_result = !terminated;
   }
 
+  if (unit.statements.empty() && diagnostics_.empty()) {
+    ErrorAtCurrent("expected expression");
+  }
+
   return {
-      .succeeded = !unit.statements.empty(),
+      .diagnostics = std::move(diagnostics_),
       .has_result = has_result,
   };
 }
@@ -140,6 +174,35 @@ bool Parser::Match(TokenType type) {
   return true;
 }
 
+void Parser::ErrorAt(const Token& token, StringView message) {
+  if (panic_mode_) {
+    return;
+  }
+
+  panic_mode_ = true;
+  diagnostics_.push_back({
+      .severity = DiagnosticSeverity::kError,
+      .message = String{message},
+      .span = token.span,
+  });
+}
+
+void Parser::ErrorAtCurrent(StringView message) { ErrorAt(current_, message); }
+
+void Parser::ErrorAtPrevious(StringView message) { ErrorAt(previous_, message); }
+
+void Parser::Synchronize() {
+  panic_mode_ = false;
+
+  while (!Check(TokenType::kEndOfFile)) {
+    if (previous_.type == TokenType::kSemicolon) {
+      return;
+    }
+
+    Advance();
+  }
+}
+
 Expression* Parser::ParseExpression() {
   return ParsePrecedence(Precedence::kNone);
 }
@@ -149,20 +212,28 @@ Expression* Parser::ParsePrecedence(Precedence precedence) {
   const PrefixParseFunction prefix{GetRule(previous_.type).prefix};
 
   if (prefix == nullptr) {
+    ErrorAtPrevious("expected expression");
     return nullptr;
   }
 
   Expression* left{(this->*prefix)()};
+  if (left == nullptr) {
+    return nullptr;
+  }
 
   while (precedence < GetRule(current_.type).precedence) {
     Advance();
-    const auto infix{GetRule(previous_.type).infix};
+    const InfixParseFunction infix{GetRule(previous_.type).infix};
 
     if (infix == nullptr) {
+      ErrorAtPrevious("expected operator");
       return nullptr;
     }
 
     left = (this->*infix)(left);
+    if (left == nullptr) {
+      return nullptr;
+    }
   }
 
   return left;
@@ -172,8 +243,8 @@ Expression* Parser::ParseBooleanLiteral() {
   FELL_ASSERT(previous_.type == TokenType::kTrue ||
               previous_.type == TokenType::kFalse);
 
-  return ast_.CreateBooleanLiteralExpression(previous_.type ==
-                                             TokenType::kTrue);
+  return ast_.CreateBooleanLiteralExpression(previous_.type == TokenType::kTrue,
+                                             previous_.span);
 }
 
 Expression* Parser::ParseIntegerLiteral() {
@@ -211,10 +282,12 @@ Expression* Parser::ParseIntegerLiteral() {
       std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value)};
 
   if (result.ec != std::errc{} || result.ptr != lexeme.data() + lexeme.size()) {
+    ErrorAtPrevious("invalid integer literal");
     return nullptr;
   }
 
-  return ast_.CreateIntegerLiteralExpression(value, explicit_type);
+  return ast_.CreateIntegerLiteralExpression(value, explicit_type,
+                                             previous_.span);
 }
 
 Expression* Parser::ParseFloatLiteral() {
@@ -237,58 +310,71 @@ Expression* Parser::ParseFloatLiteral() {
       std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value)};
 
   if (result.ec != std::errc{} || result.ptr != lexeme.data() + lexeme.size()) {
+    ErrorAtPrevious("invalid floating-point literal");
     return nullptr;
   }
 
-  return ast_.CreateFloatLiteralExpression(value, explicit_type);
+  return ast_.CreateFloatLiteralExpression(value, explicit_type,
+                                           previous_.span);
 }
 
 Expression* Parser::ParseGrouping() {
-  Expression* expression{ParseExpression()};
+  const SourceSpan opening_span{previous_.span};
+  Expression* const expression{ParseExpression()};
 
-  if (expression == nullptr || !Match(TokenType::kRightParen)) {
+  if (expression == nullptr) {
     return nullptr;
   }
 
+  if (!Match(TokenType::kRightParen)) {
+    ErrorAtCurrent("expected ')' after expression");
+    return nullptr;
+  }
+
+  expression->span = MergeSpans(opening_span, previous_.span);
   return expression;
 }
 
 Expression* Parser::ParseUnary() {
   const TokenType operator_type{previous_.type};
+  const SourceSpan operator_span{previous_.span};
   Expression* const operand{ParsePrecedence(Precedence::kUnary)};
 
   if (operand == nullptr) {
     return nullptr;
   }
 
-  return ast_.CreateUnaryExpression(GetUnaryOperator(operator_type), operand);
+  return ast_.CreateUnaryExpression(GetUnaryOperator(operator_type), operand,
+                                    MergeSpans(operator_span, operand->span));
 }
 
 Expression* Parser::ParseBinary(Expression* left) {
   const TokenType operator_type{previous_.type};
   const Precedence precedence{GetRule(operator_type).precedence};
-  Expression* right{ParsePrecedence(precedence)};
+  Expression* const right{ParsePrecedence(precedence)};
 
   if (right == nullptr) {
     return nullptr;
   }
 
   return ast_.CreateBinaryExpression(left, GetBinaryOperator(operator_type),
-                                     right);
+                                     right, MergeSpans(left->span, right->span));
 }
 
 Statement* Parser::ParseStatement() {
-  auto* expression{ParseExpression()};
+  Expression* const expression{ParseExpression()};
 
   if (expression == nullptr) {
     return nullptr;
   }
 
   if (!Match(TokenType::kSemicolon)) {
+    ErrorAtCurrent("expected ';' after expression");
     return nullptr;
   }
 
-  return ast_.CreateExpressionStatement(expression);
+  return ast_.CreateExpressionStatement(
+      expression, MergeSpans(expression->span, previous_.span));
 }
 
 }  // namespace fell

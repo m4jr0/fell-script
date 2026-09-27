@@ -8,57 +8,73 @@ namespace fell {
 Lexer::Lexer(StringView source) : source_(source) {}
 
 Token Lexer::NextToken() {
-  while (position_ < source_.size() && IsWhitespace(source_[position_])) {
-    ++position_;
-  }
+  SkipWhitespace();
+
+  const SourceLocation start{
+      .offset = position_,
+      .line = line_,
+      .column = column_,
+  };
 
   if (position_ == source_.size()) {
-    return MakeToken(TokenType::kEndOfFile, position_);
+    return MakeToken(TokenType::kEndOfFile, start);
   }
 
-  const auto start{position_};
   const char character{source_[position_]};
 
   switch (character) {
     case '(':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kLeftParen, start);
 
     case ')':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kRightParen, start);
 
     case '*':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kStar, start);
 
     case '/':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kSlash, start);
 
     case '+':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kPlus, start);
 
     case '-':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kMinus, start);
 
     case ';':
-      ++position_;
+      Advance();
       return MakeToken(TokenType::kSemicolon, start);
   }
 
   if (IsIdentifierStart(character)) {
-    return TokenizeIdentifier();
+    return TokenizeIdentifier(start);
   }
 
   if (IsDigit(character)) {
-    return TokenizeNumber();
+    return TokenizeNumber(start);
   }
 
-  ++position_;
+  Advance();
   return MakeToken(TokenType::kInvalid, start);
+}
+
+char Lexer::Advance() {
+  const char character{source_[position_++]};
+
+  if (character == '\n') {
+    ++line_;
+    column_ = 1;
+  } else {
+    ++column_;
+  }
+
+  return character;
 }
 
 bool Lexer::Consume(StringView text) {
@@ -66,22 +82,34 @@ bool Lexer::Consume(StringView text) {
     return false;
   }
 
-  position_ += text.size();
+  for (usize index{0}; index < text.size(); ++index) {
+    Advance();
+  }
+
   return true;
 }
 
-Token Lexer::MakeToken(TokenType type, usize start) const {
+void Lexer::SkipWhitespace() {
+  while (position_ < source_.size() && IsWhitespace(source_[position_])) {
+    Advance();
+  }
+}
+
+Token Lexer::MakeToken(TokenType type, SourceLocation start) const {
   return {
       .type = type,
-      .lexeme = source_.substr(start, position_ - start),
+      .lexeme = source_.substr(start.offset, position_ - start.offset),
+      .span =
+          {
+              .start = start,
+              .length = position_ - start.offset,
+          },
   };
 }
 
-Token Lexer::TokenizeNumber() {
-  const auto start{position_};
-
+Token Lexer::TokenizeNumber(SourceLocation start) {
   while (position_ < source_.size() && IsDigit(source_[position_])) {
-    ++position_;
+    Advance();
   }
 
   auto type{TokenType::kIntegerLiteral};
@@ -89,10 +117,10 @@ Token Lexer::TokenizeNumber() {
   if (position_ + 1 < source_.size() && source_[position_] == '.' &&
       IsDigit(source_[position_ + 1])) {
     type = TokenType::kFloatLiteral;
-    ++position_;
+    Advance();
 
     while (position_ < source_.size() && IsDigit(source_[position_])) {
-      ++position_;
+      Advance();
     }
   }
 
@@ -113,16 +141,14 @@ Token Lexer::TokenizeNumber() {
   return MakeToken(type, start);
 }
 
-Token Lexer::TokenizeIdentifier() {
-  const usize start{position_};
-
+Token Lexer::TokenizeIdentifier(SourceLocation start) {
   while (position_ < source_.size() &&
          IsIdentifierContinue(source_[position_])) {
-    ++position_;
+    Advance();
   }
 
   const StringView lexeme{
-      source_.substr(start, position_ - start),
+      source_.substr(start.offset, position_ - start.offset),
   };
 
   return MakeToken(GetIdentifierType(lexeme), start);
@@ -142,14 +168,12 @@ TokenType Lexer::GetIdentifierType(StringView lexeme) const {
       if (lexeme == "false") {
         return TokenType::kFalse;
       }
-
       break;
 
     case 't':
       if (lexeme == "true") {
         return TokenType::kTrue;
       }
-
       break;
   }
 

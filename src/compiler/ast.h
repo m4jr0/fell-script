@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler/source_location.h"
 #include "compiler/type.h"
 #include "core/memory.h"
 #include "core/types.h"
@@ -62,6 +63,7 @@ struct BinaryExpression {
 struct Expression {
   ExpressionId id;
   ExpressionKind kind;
+  SourceSpan span;
 
   union {
     BooleanLiteralExpression boolean_literal;
@@ -87,6 +89,7 @@ struct ExpressionStatement {
 struct Statement {
   StatementId id;
   StatementKind kind;
+  SourceSpan span;
 
   union {
     ExpressionStatement expression;
@@ -99,16 +102,19 @@ struct CompilationUnit {
 
 class Ast {
  public:
-  Expression* CreateBooleanLiteralExpression(bool value);
-  Expression* CreateIntegerLiteralExpression(u64 value, Type explicit_type);
-  Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type);
+  Expression* CreateBooleanLiteralExpression(bool value, SourceSpan span);
+  Expression* CreateIntegerLiteralExpression(u64 value, Type explicit_type,
+                                             SourceSpan span);
+  Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type,
+                                           SourceSpan span);
 
-  Expression* CreateUnaryExpression(UnaryOperator op, Expression* operand);
+  Expression* CreateUnaryExpression(UnaryOperator op, Expression* operand,
+                                    SourceSpan span);
 
   Expression* CreateBinaryExpression(Expression* left, BinaryOperator op,
-                                     Expression* right);
+                                     Expression* right, SourceSpan span);
 
-  Statement* CreateExpressionStatement(Expression* expression);
+  Statement* CreateExpressionStatement(Expression* expression, SourceSpan span);
 
  private:
   // TODO(m4jr0): Allocate AST nodes from an arena.

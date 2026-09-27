@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compiler/source_location.h"
 #include "compiler/token.h"
 #include "core/core.h"
 #include "core/string.h"
@@ -13,12 +14,14 @@ class Lexer {
   Token NextToken();
 
  private:
+  char Advance();
   bool Consume(StringView text);
+  void SkipWhitespace();
 
-  Token MakeToken(TokenType type, usize start) const;
+  Token MakeToken(TokenType type, SourceLocation start) const;
 
-  Token TokenizeNumber();
-  Token TokenizeIdentifier();
+  Token TokenizeNumber(SourceLocation start);
+  Token TokenizeIdentifier(SourceLocation start);
 
   bool IsIdentifierStart(char character) const;
   bool IsIdentifierContinue(char character) const;
@@ -26,6 +29,8 @@ class Lexer {
 
   StringView source_;
   usize position_{0};
+  u32 line_{1};
+  u32 column_{1};
 };
 
 }  // namespace fell

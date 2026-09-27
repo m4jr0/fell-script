@@ -19,11 +19,10 @@ struct ParsedProgram {
   CompilationUnit unit;
 };
 
-bool ParseProgram(StringView source, ParsedProgram& program) {
+ParseResult ParseProgram(StringView source, ParsedProgram& program) {
   Lexer lexer{source};
   Parser parser{lexer, program.ast};
-  return parser.ParseCompilationUnit(program.unit) &&
-         !program.unit.statements.empty();
+  return parser.ParseCompilationUnit(program.unit);
 }
 
 }  // namespace
@@ -39,11 +38,11 @@ CompileResult Compiler::Compile(StringView source,
   }
 
   ParsedProgram parsed{};
-  if (!ParseProgram(source, parsed)) {
-    result.diagnostics.push_back({
-        .severity = DiagnosticSeverity::kError,
-        .message = "expected a valid compilation unit",
-    });
+  ParseResult parse_result{ParseProgram(source, parsed)};
+  const bool parse_succeeded{parse_result.Succeeded()};
+  result.diagnostics = std::move(parse_result.diagnostics);
+
+  if (!parse_succeeded) {
     return result;
   }
 
@@ -68,13 +67,11 @@ CompileResult Compiler::CompileReplInput(StringView source,
   ParsedProgram parsed{};
   Lexer lexer{source};
   Parser parser{lexer, parsed.ast};
-  const ReplParseResult parse_result{parser.ParseReplInput(parsed.unit)};
+  ParseResult parse_result{parser.ParseReplInput(parsed.unit)};
+  const bool parse_succeeded{parse_result.Succeeded()};
+  result.diagnostics = std::move(parse_result.diagnostics);
 
-  if (!parse_result.succeeded) {
-    result.diagnostics.push_back({
-        .severity = DiagnosticSeverity::kError,
-        .message = "expected valid REPL input",
-    });
+  if (!parse_succeeded) {
     return result;
   }
 
