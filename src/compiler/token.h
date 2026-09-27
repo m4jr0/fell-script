@@ -6,8 +6,13 @@
 namespace fell {
 
 enum class TokenType {
+  kTrue,
+  kFalse,
+
   kIntegerLiteral,
   kFloatLiteral,
+
+  kIdentifier,
 
   kLeftParen,
   kRightParen,

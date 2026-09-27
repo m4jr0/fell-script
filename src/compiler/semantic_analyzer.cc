@@ -105,6 +105,12 @@ void SemanticAnalyzer::AnalyzeStatement(const Statement& statement,
 void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
                                          SemanticResult& result) {
   switch (expression.kind) {
+    case ExpressionKind::kBooleanLiteral:
+      result.model.Set(expression, {
+                                       .type = Type::kBool,
+                                   });
+      return;
+
     case ExpressionKind::kIntegerLiteral: {
       const Type type{GetIntegerLiteralType(expression.integer_literal)};
 
@@ -231,6 +237,18 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
         result.model.Set(expression, {
                                          .type = Type::kError,
                                      });
+        return;
+      }
+
+      if (!IsNumericType(left.type) || !IsNumericType(right.type)) {
+        result.model.Set(expression, {
+                                         .type = Type::kError,
+                                     });
+
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message = "arithmetic operators only apply to numeric types",
+        });
         return;
       }
 

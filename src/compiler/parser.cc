@@ -76,11 +76,20 @@ ReplParseResult Parser::ParseReplInput(CompilationUnit& unit) {
 const Parser::ParseRule& Parser::GetRule(TokenType type) {
   // clang-format off
   static const ParseRule kRules[]{
+    // kTrue
+    {.prefix = &Parser::ParseBooleanLiteral, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kFalse
+    {.prefix = &Parser::ParseBooleanLiteral, .infix = nullptr, .precedence = Precedence::kNone},
+
     // kIntegerLiteral
     {.prefix = &Parser::ParseIntegerLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kFloatLiteral
     {.prefix = &Parser::ParseFloatLiteral, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kIdentifier
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kLeftParen
     {.prefix = &Parser::ParseGrouping, .infix = nullptr, .precedence = Precedence::kNone},
@@ -157,6 +166,14 @@ Expression* Parser::ParsePrecedence(Precedence precedence) {
   }
 
   return left;
+}
+
+Expression* Parser::ParseBooleanLiteral() {
+  FELL_ASSERT(previous_.type == TokenType::kTrue ||
+              previous_.type == TokenType::kFalse);
+
+  return ast_.CreateBooleanLiteralExpression(previous_.type ==
+                                             TokenType::kTrue);
 }
 
 Expression* Parser::ParseIntegerLiteral() {

@@ -6,6 +6,8 @@
 namespace fell {
 
 enum class ValueType : u8 {
+  kBool,
+
   kS8,
   kS16,
   kS32,
@@ -21,6 +23,7 @@ enum class ValueType : u8 {
 };
 
 union ValueData {
+  bool bool_value;
   s64 s64_value;
   u64 u64_value;
   f64 f64_value;

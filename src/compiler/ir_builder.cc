@@ -4,7 +4,6 @@
 #include "core/core.h"
 
 namespace fell {
-
 IrProgram IrBuilder::Build(const CompilationUnit& unit,
                            const SemanticModel& semantics,
                            bool return_last_expression) {
@@ -36,6 +35,15 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
                                      const SemanticModel& semantics,
                                      IrProgram& program) {
   switch (expression.kind) {
+    case ExpressionKind::kBooleanLiteral: {
+      const Type type{semantics.Get(expression).type};
+      FELL_ASSERT(type != Type::kError);
+      const IrValueId destination{AllocateValue(program, type)};
+      EmitBooleanConstant(program, destination,
+                          expression.boolean_literal.value);
+      return destination;
+    }
+
     case ExpressionKind::kIntegerLiteral: {
       const Type type{semantics.Get(expression).type};
       FELL_ASSERT(type != Type::kError);
@@ -156,6 +164,15 @@ IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
 
   return destination;
 }
+void IrBuilder::EmitBooleanConstant(IrProgram& program, IrValueId destination,
+                                    bool value) {
+  IrConstant constant{.destination = destination, .bool_value = value};
+
+  program.instructions.push_back({
+      .opcode = IrOpcode::kConstant,
+      .constant = constant,
+  });
+}
 
 void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
                                     u64 value, Type type) {
@@ -186,6 +203,7 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
     case Type::kU64:
       constant.u64_value = value;
       break;
+    case Type::kBool:
     case Type::kF32:
     case Type::kF64:
     case Type::kInvalid:
@@ -230,6 +248,7 @@ void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
     case Type::kF64:
       constant.f64_value = value;
       break;
+    case Type::kBool:
     case Type::kS8:
     case Type::kS16:
     case Type::kS32:

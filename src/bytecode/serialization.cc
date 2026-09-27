@@ -92,6 +92,10 @@ void WriteValue(Writer& writer, const Value& value) {
   writer.WriteU8(static_cast<u8>(value.type));
 
   switch (value.type) {
+    case ValueType::kBool:
+      writer.WriteU8(value.data.bool_value ? 1 : 0);
+      break;
+
     case ValueType::kS8:
     case ValueType::kS16:
     case ValueType::kS32:
@@ -119,34 +123,60 @@ bool IsValidValueType(u8 value) {
 
 bool ReadValue(Reader& reader, Value& value) {
   u8 type{};
-  u64 data{};
 
-  if (!reader.ReadU8(type) || !IsValidValueType(type) ||
-      !reader.ReadU64(data)) {
+  if (!reader.ReadU8(type) || !IsValidValueType(type)) {
     return false;
   }
 
   value.type = static_cast<ValueType>(type);
 
   switch (value.type) {
+    case ValueType::kBool: {
+      u8 data{};
+      if (!reader.ReadU8(data) || data > 1) {
+        return false;
+      }
+
+      value.data.bool_value = data != 0;
+      break;
+    }
+
     case ValueType::kS8:
     case ValueType::kS16:
     case ValueType::kS32:
-    case ValueType::kS64:
+    case ValueType::kS64: {
+      u64 data{};
+      if (!reader.ReadU64(data)) {
+        return false;
+      }
+
       value.data.s64_value = std::bit_cast<s64>(data);
       break;
+    }
 
     case ValueType::kU8:
     case ValueType::kU16:
     case ValueType::kU32:
-    case ValueType::kU64:
+    case ValueType::kU64: {
+      u64 data{};
+      if (!reader.ReadU64(data)) {
+        return false;
+      }
+
       value.data.u64_value = data;
       break;
+    }
 
     case ValueType::kF32:
-    case ValueType::kF64:
+    case ValueType::kF64: {
+      u64 data{};
+      if (!reader.ReadU64(data)) {
+        return false;
+      }
+
       value.data.f64_value = std::bit_cast<f64>(data);
       break;
+    }
   }
 
   return true;

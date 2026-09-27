@@ -6,10 +6,16 @@ namespace fell {
 
 StringView ToString(TokenType type) {
   switch (type) {
+    case TokenType::kTrue:
+      return "true";
+    case TokenType::kFalse:
+      return "false";
     case TokenType::kIntegerLiteral:
       return "integer_literal";
     case TokenType::kFloatLiteral:
       return "float_literal";
+    case TokenType::kIdentifier:
+      return "identifier";
     case TokenType::kLeftParen:
       return "left_paren";
     case TokenType::kRightParen:

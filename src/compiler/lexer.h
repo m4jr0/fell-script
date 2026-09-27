@@ -18,6 +18,11 @@ class Lexer {
   Token MakeToken(TokenType type, usize start) const;
 
   Token TokenizeNumber();
+  Token TokenizeIdentifier();
+
+  bool IsIdentifierStart(char character) const;
+  bool IsIdentifierContinue(char character) const;
+  TokenType GetIdentifierType(StringView lexeme) const;
 
   StringView source_;
   usize position_{0};

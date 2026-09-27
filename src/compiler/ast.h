@@ -23,6 +23,7 @@ struct ExpressionId {
 };
 
 enum class ExpressionKind {
+  kBooleanLiteral,
   kIntegerLiteral,
   kFloatLiteral,
   kUnary,
@@ -31,15 +32,8 @@ enum class ExpressionKind {
 
 struct Expression;
 
-struct UnaryExpression {
-  UnaryOperator op;
-  Expression* operand;
-};
-
-struct BinaryExpression {
-  Expression* left;
-  BinaryOperator op;
-  Expression* right;
+struct BooleanLiteralExpression {
+  bool value;
 };
 
 // No negatives.
@@ -54,11 +48,23 @@ struct FloatLiteralExpression {
   Type explicit_type;
 };
 
+struct UnaryExpression {
+  UnaryOperator op;
+  Expression* operand;
+};
+
+struct BinaryExpression {
+  Expression* left;
+  BinaryOperator op;
+  Expression* right;
+};
+
 struct Expression {
   ExpressionId id;
   ExpressionKind kind;
 
   union {
+    BooleanLiteralExpression boolean_literal;
     IntegerLiteralExpression integer_literal;
     FloatLiteralExpression float_literal;
     UnaryExpression unary;
@@ -93,6 +99,7 @@ struct CompilationUnit {
 
 class Ast {
  public:
+  Expression* CreateBooleanLiteralExpression(bool value);
   Expression* CreateIntegerLiteralExpression(u64 value, Type explicit_type);
   Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type);
 

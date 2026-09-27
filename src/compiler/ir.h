@@ -25,6 +25,7 @@ struct IrConstant {
   IrValueId destination;
 
   union {
+    bool bool_value;
     s64 s64_value;
     u64 u64_value;
     f64 f64_value;

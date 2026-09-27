@@ -8,6 +8,27 @@
 
 namespace fell {
 
+Expression* Ast::CreateBooleanLiteralExpression(bool value) {
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{
+      .value = static_cast<u32>(expressions_.size()),
+  };
+
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kBooleanLiteral,
+      .boolean_literal =
+          {
+              .value = value,
+          },
+  })};
+
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+
+  return result;
+}
+
 Expression* Ast::CreateIntegerLiteralExpression(u64 value, Type explicit_type) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
   const ExpressionId id{

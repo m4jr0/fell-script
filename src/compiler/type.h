@@ -9,6 +9,8 @@ enum class Type {
   kInvalid,
   kError,
 
+  kBool,
+
   kS8,
   kS16,
   kS32,

@@ -43,6 +43,7 @@ class Parser {
   Expression* ParseExpression();
   Expression* ParsePrecedence(Precedence precedence);
 
+  Expression* ParseBooleanLiteral();
   Expression* ParseIntegerLiteral();
   Expression* ParseFloatLiteral();
   Expression* ParseGrouping();

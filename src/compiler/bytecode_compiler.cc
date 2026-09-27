@@ -13,6 +13,8 @@ RegisterId ToRegister(IrValueId value) {
 
 ValueType ToValueType(Type type) {
   switch (type) {
+    case Type::kBool:
+      return ValueType::kBool;
     case Type::kS8:
       return ValueType::kS8;
     case Type::kS16:
@@ -149,11 +151,12 @@ Opcode GetConvertOpcode(Type source, Type destination) {
       FELL_ASSERT(destination == Type::kF64);
       return Opcode::kConvertF32ToF64;
 
+    case Type::kInvalid:
+    case Type::kError:
+    case Type::kBool:
     case Type::kS64:
     case Type::kU64:
     case Type::kF64:
-    case Type::kInvalid:
-    case Type::kError:
       FELL_UNREACHABLE();
   }
 
@@ -185,6 +188,7 @@ Opcode GetMultiplyOpcode(Type type) {
 
     case Type::kInvalid:
     case Type::kError:
+    case Type::kBool:
       FELL_UNREACHABLE();
   }
 
@@ -216,6 +220,7 @@ Opcode GetDivideOpcode(Type type) {
 
     case Type::kInvalid:
     case Type::kError:
+    case Type::kBool:
       FELL_UNREACHABLE();
   }
 
@@ -247,6 +252,7 @@ Opcode GetAddOpcode(Type type) {
 
     case Type::kInvalid:
     case Type::kError:
+    case Type::kBool:
       FELL_UNREACHABLE();
   }
 
@@ -278,6 +284,7 @@ Opcode GetSubtractOpcode(Type type) {
 
     case Type::kInvalid:
     case Type::kError:
+    case Type::kBool:
       FELL_UNREACHABLE();
   }
 
@@ -293,6 +300,10 @@ Value MakeConstantValue(const IrProgram& ir, const IrConstant& constant) {
   };
 
   switch (type) {
+    case Type::kBool:
+      value.data.bool_value = constant.bool_value;
+      break;
+
     case Type::kS8:
     case Type::kS16:
     case Type::kS32:

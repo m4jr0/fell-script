@@ -61,6 +61,11 @@ StringView ToString(IrOpcode opcode) {
 void DumpExpression(const Expression& expression, std::ostringstream& output,
                     StringView indent) {
   switch (expression.kind) {
+    case ExpressionKind::kBooleanLiteral:
+      output << indent << "BooleanLiteral "
+             << (expression.boolean_literal.value ? "true" : "false") << '\n';
+      return;
+
     case ExpressionKind::kIntegerLiteral:
       output << indent << "IntegerLiteral " << expression.integer_literal.value;
       if (expression.integer_literal.explicit_type != Type::kInvalid) {
@@ -152,6 +157,10 @@ String DumpIr(const IrProgram& program) {
                << " = constant " << ToString(type) << " ";
 
         switch (type) {
+          case Type::kBool:
+            output << (instruction.constant.bool_value ? "true" : "false");
+            break;
+
           case Type::kS8:
           case Type::kS16:
           case Type::kS32:

@@ -4,6 +4,11 @@
 
 namespace fell {
 
+bool IsAlpha(char character) {
+  return (character >= 'A' && character <= 'Z') ||
+         (character >= 'a' && character <= 'z');
+}
+
 bool IsDigit(char character) {
   return std::isdigit(static_cast<unsigned char>(character)) != 0;
 }

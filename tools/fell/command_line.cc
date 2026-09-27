@@ -199,7 +199,7 @@ int RunRepl(const CompileOptions& options = {}) {
   String line{};
 
   while (true) {
-    std::cout << "fell> ";
+    std::cout << "fell> " << std::flush;
 
     if (!std::getline(std::cin, line)) {
       std::cout << '\n';

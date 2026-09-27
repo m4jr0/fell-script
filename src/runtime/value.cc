@@ -23,6 +23,9 @@ String NumberToString(T value) {
 
 String ToString(const Value& value) {
   switch (value.type) {
+    case ValueType::kBool:
+      return value.data.bool_value ? "true" : "false";
+
     case ValueType::kS8:
     case ValueType::kS16:
     case ValueType::kS32:

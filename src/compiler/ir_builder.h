@@ -19,6 +19,9 @@ class IrBuilder {
   IrValueId ConvertIfNeeded(IrValueId source, Type destination_type,
                             IrProgram& program);
 
+  void EmitBooleanConstant(IrProgram& program, IrValueId destination,
+                           bool value);
+
   void EmitIntegerConstant(IrProgram& program, IrValueId destination, u64 value,
                            Type type);
 

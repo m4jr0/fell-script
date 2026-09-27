@@ -49,6 +49,10 @@ Token Lexer::NextToken() {
       return MakeToken(TokenType::kSemicolon, start);
   }
 
+  if (IsIdentifierStart(character)) {
+    return TokenizeIdentifier();
+  }
+
   if (IsDigit(character)) {
     return TokenizeNumber();
   }
@@ -107,6 +111,49 @@ Token Lexer::TokenizeNumber() {
   }
 
   return MakeToken(type, start);
+}
+
+Token Lexer::TokenizeIdentifier() {
+  const usize start{position_};
+
+  while (position_ < source_.size() &&
+         IsIdentifierContinue(source_[position_])) {
+    ++position_;
+  }
+
+  const StringView lexeme{
+      source_.substr(start, position_ - start),
+  };
+
+  return MakeToken(GetIdentifierType(lexeme), start);
+}
+
+bool Lexer::IsIdentifierStart(char character) const {
+  return IsAlpha(character) || character == '_';
+}
+
+bool Lexer::IsIdentifierContinue(char character) const {
+  return IsIdentifierStart(character) || IsDigit(character);
+}
+
+TokenType Lexer::GetIdentifierType(StringView lexeme) const {
+  switch (lexeme[0]) {
+    case 'f':
+      if (lexeme == "false") {
+        return TokenType::kFalse;
+      }
+
+      break;
+
+    case 't':
+      if (lexeme == "true") {
+        return TokenType::kTrue;
+      }
+
+      break;
+  }
+
+  return TokenType::kIdentifier;
 }
 
 }  // namespace fell
