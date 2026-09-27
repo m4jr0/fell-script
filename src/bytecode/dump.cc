@@ -71,6 +71,58 @@ StringView ToString(Opcode opcode) {
       return "convert_u32_to_f64";
     case Opcode::kConvertF32ToF64:
       return "convert_f32_to_f64";
+    case Opcode::kNegateS8:
+      return "negate_s8";
+    case Opcode::kNegateS16:
+      return "negate_s16";
+    case Opcode::kNegateS32:
+      return "negate_s32";
+    case Opcode::kNegateS64:
+      return "negate_s64";
+    case Opcode::kNegateF32:
+      return "negate_f32";
+    case Opcode::kNegateF64:
+      return "negate_f64";
+    case Opcode::kMultiplyS8:
+      return "multiply_s8";
+    case Opcode::kMultiplyS16:
+      return "multiply_s16";
+    case Opcode::kMultiplyS32:
+      return "multiply_s32";
+    case Opcode::kMultiplyS64:
+      return "multiply_s64";
+    case Opcode::kMultiplyU8:
+      return "multiply_u8";
+    case Opcode::kMultiplyU16:
+      return "multiply_u16";
+    case Opcode::kMultiplyU32:
+      return "multiply_u32";
+    case Opcode::kMultiplyU64:
+      return "multiply_u64";
+    case Opcode::kMultiplyF32:
+      return "multiply_f32";
+    case Opcode::kMultiplyF64:
+      return "multiply_f64";
+    case Opcode::kDivideS8:
+      return "divide_s8";
+    case Opcode::kDivideS16:
+      return "divide_s16";
+    case Opcode::kDivideS32:
+      return "divide_s32";
+    case Opcode::kDivideS64:
+      return "divide_s64";
+    case Opcode::kDivideU8:
+      return "divide_u8";
+    case Opcode::kDivideU16:
+      return "divide_u16";
+    case Opcode::kDivideU32:
+      return "divide_u32";
+    case Opcode::kDivideU64:
+      return "divide_u64";
+    case Opcode::kDivideF32:
+      return "divide_f32";
+    case Opcode::kDivideF64:
+      return "divide_f64";
     case Opcode::kAddS8:
       return "add_s8";
     case Opcode::kAddS16:
@@ -167,6 +219,36 @@ String DumpBytecode(const BytecodeModule& module) {
                << instruction.convert.source;
         break;
 
+      case Opcode::kNegateS8:
+      case Opcode::kNegateS16:
+      case Opcode::kNegateS32:
+      case Opcode::kNegateS64:
+      case Opcode::kNegateF32:
+      case Opcode::kNegateF64:
+        output << " r" << instruction.unary.destination << ", r"
+               << instruction.unary.operand;
+        break;
+
+      case Opcode::kMultiplyS8:
+      case Opcode::kMultiplyS16:
+      case Opcode::kMultiplyS32:
+      case Opcode::kMultiplyS64:
+      case Opcode::kMultiplyU8:
+      case Opcode::kMultiplyU16:
+      case Opcode::kMultiplyU32:
+      case Opcode::kMultiplyU64:
+      case Opcode::kMultiplyF32:
+      case Opcode::kMultiplyF64:
+      case Opcode::kDivideS8:
+      case Opcode::kDivideS16:
+      case Opcode::kDivideS32:
+      case Opcode::kDivideS64:
+      case Opcode::kDivideU8:
+      case Opcode::kDivideU16:
+      case Opcode::kDivideU32:
+      case Opcode::kDivideU64:
+      case Opcode::kDivideF32:
+      case Opcode::kDivideF64:
       case Opcode::kAddS8:
       case Opcode::kAddS16:
       case Opcode::kAddS32:

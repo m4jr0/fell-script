@@ -157,8 +157,12 @@ bool IsConvertOpcode(Opcode opcode) {
          opcode <= Opcode::kConvertF32ToF64;
 }
 
+bool IsUnaryOpcode(Opcode opcode) {
+  return opcode >= Opcode::kNegateS8 && opcode <= Opcode::kNegateF64;
+}
+
 bool IsBinaryOpcode(Opcode opcode) {
-  return opcode >= Opcode::kAddS8 && opcode <= Opcode::kSubtractF64;
+  return opcode >= Opcode::kMultiplyS8 && opcode <= Opcode::kSubtractF64;
 }
 
 bool IsValidOpcode(u8 value) {
@@ -195,6 +199,9 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
     } else if (IsConvertOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.convert.destination);
       writer.WriteU16(instruction.convert.source);
+    } else if (IsUnaryOpcode(instruction.opcode)) {
+      writer.WriteU16(instruction.unary.destination);
+      writer.WriteU16(instruction.unary.operand);
     } else if (IsBinaryOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.binary.destination);
       writer.WriteU16(instruction.binary.left);
@@ -292,6 +299,25 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
       module.instructions.push_back({
           .opcode = opcode,
           .convert = convert,
+      });
+    } else if (IsUnaryOpcode(opcode)) {
+      UnaryInstruction unary{};
+      if (!reader.ReadU16(unary.destination) ||
+          !reader.ReadU16(unary.operand)) {
+        return {.module = {}, .error = "truncated unary instruction"};
+      }
+
+      if (!IsValidRegister(unary.destination, module) ||
+          !IsValidRegister(unary.operand, module)) {
+        return {
+            .module = {},
+            .error = "invalid register in unary instruction",
+        };
+      }
+
+      module.instructions.push_back({
+          .opcode = opcode,
+          .unary = unary,
       });
     } else if (IsBinaryOpcode(opcode)) {
       BinaryInstruction binary{};

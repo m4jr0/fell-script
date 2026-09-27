@@ -22,6 +22,9 @@ class IrBuilder {
   void EmitIntegerConstant(IrProgram& program, IrValueId destination, u64 value,
                            Type type);
 
+  void EmitNegatedIntegerConstant(IrProgram& program, IrValueId destination,
+                                  u64 magnitude, Type type);
+
   void EmitFloatConstant(IrProgram& program, IrValueId destination, f64 value,
                          Type type);
 };

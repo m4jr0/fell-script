@@ -52,6 +52,28 @@ Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type) {
   return result;
 }
 
+Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand) {
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{
+      .value = static_cast<u32>(expressions_.size()),
+  };
+
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kUnary,
+      .unary =
+          {
+              .op = op,
+              .operand = operand,
+          },
+  })};
+
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+
+  return result;
+}
+
 Expression* Ast::CreateBinaryExpression(Expression* left, BinaryOperator op,
                                         Expression* right) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);

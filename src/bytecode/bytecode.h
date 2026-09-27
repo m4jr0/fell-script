@@ -14,15 +14,12 @@ enum class Opcode : u8 {
   kConvertS8ToS64,
   kConvertS8ToF32,
   kConvertS8ToF64,
-
   kConvertS16ToS32,
   kConvertS16ToS64,
   kConvertS16ToF32,
   kConvertS16ToF64,
-
   kConvertS32ToS64,
   kConvertS32ToF64,
-
   kConvertU8ToS16,
   kConvertU8ToS32,
   kConvertU8ToS64,
@@ -31,19 +28,45 @@ enum class Opcode : u8 {
   kConvertU8ToU64,
   kConvertU8ToF32,
   kConvertU8ToF64,
-
   kConvertU16ToS32,
   kConvertU16ToS64,
   kConvertU16ToU32,
   kConvertU16ToU64,
   kConvertU16ToF32,
   kConvertU16ToF64,
-
   kConvertU32ToS64,
   kConvertU32ToU64,
   kConvertU32ToF64,
-
   kConvertF32ToF64,
+
+  kNegateS8,
+  kNegateS16,
+  kNegateS32,
+  kNegateS64,
+  kNegateF32,
+  kNegateF64,
+
+  kMultiplyS8,
+  kMultiplyS16,
+  kMultiplyS32,
+  kMultiplyS64,
+  kMultiplyU8,
+  kMultiplyU16,
+  kMultiplyU32,
+  kMultiplyU64,
+  kMultiplyF32,
+  kMultiplyF64,
+
+  kDivideS8,
+  kDivideS16,
+  kDivideS32,
+  kDivideS64,
+  kDivideU8,
+  kDivideU16,
+  kDivideU32,
+  kDivideU64,
+  kDivideF32,
+  kDivideF64,
 
   kAddS8,
   kAddS16,
@@ -84,6 +107,11 @@ struct ConvertInstruction {
   RegisterId source;
 };
 
+struct UnaryInstruction {
+  RegisterId destination;
+  RegisterId operand;
+};
+
 struct BinaryInstruction {
   RegisterId destination;
   RegisterId left;
@@ -101,6 +129,7 @@ struct Instruction {
   union {
     LoadImmediateInstruction load_immediate;
     ConvertInstruction convert;
+    UnaryInstruction unary;
     BinaryInstruction binary;
     ReturnInstruction return_;
   };

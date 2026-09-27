@@ -50,6 +50,78 @@ ValueData ConvertFloat(ValueData source) {
 }
 
 template <typename T>
+ValueData NegateSigned(ValueData operand) {
+  ValueData result{};
+
+  // TODO(m4jr0): Define signed integer overflow semantics.
+  result.s64_value = static_cast<T>(-static_cast<T>(operand.s64_value));
+
+  return result;
+}
+
+template <typename T>
+ValueData NegateFloat(ValueData operand) {
+  ValueData result{};
+  result.f64_value = static_cast<f64>(-static_cast<T>(operand.f64_value));
+  return result;
+}
+
+template <typename T>
+ValueData MultiplySigned(ValueData left, ValueData right) {
+  ValueData result{};
+  // TODO(m4jr0): Define signed integer overflow semantics and avoid relying on
+  // C++ signed overflow behavior.
+  result.s64_value = static_cast<T>(static_cast<T>(left.s64_value) *
+                                    static_cast<T>(right.s64_value));
+  return result;
+}
+
+template <typename T>
+ValueData MultiplyUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.u64_value = static_cast<T>(static_cast<T>(left.u64_value) *
+                                    static_cast<T>(right.u64_value));
+  return result;
+}
+
+template <typename T>
+ValueData MultiplyFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.f64_value = static_cast<f64>(static_cast<T>(left.f64_value) *
+                                      static_cast<T>(right.f64_value));
+  return result;
+}
+
+template <typename T>
+ValueData DivideSigned(ValueData left, ValueData right) {
+  ValueData result{};
+
+  // TODO(m4jr0): Define integer division-by-zero and signed overflow
+  // semantics.
+  result.s64_value = static_cast<T>(static_cast<T>(left.s64_value) /
+                                    static_cast<T>(right.s64_value));
+  return result;
+}
+
+template <typename T>
+ValueData DivideUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+
+  // TODO(m4jr0): Define integer division-by-zero semantics.
+  result.u64_value = static_cast<T>(static_cast<T>(left.u64_value) /
+                                    static_cast<T>(right.u64_value));
+  return result;
+}
+
+template <typename T>
+ValueData DivideFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.f64_value = static_cast<f64>(static_cast<T>(left.f64_value) /
+                                      static_cast<T>(right.f64_value));
+  return result;
+}
+
+template <typename T>
 ValueData AddSigned(ValueData left, ValueData right) {
   ValueData result{};
   // TODO(m4jr0): Define signed integer overflow semantics and avoid relying on
@@ -132,6 +204,12 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
             get_register(instruction.convert.source));  \
     break
 
+#define FELL_UNARY(OPCODE, FUNCTION, TYPE)                       \
+  case Opcode::OPCODE:                                           \
+    get_register(instruction.unary.destination) =                \
+        FUNCTION<TYPE>(get_register(instruction.unary.operand)); \
+    break
+
 #define FELL_BINARY(OPCODE, FUNCTION, TYPE)                     \
   case Opcode::OPCODE:                                          \
     get_register(instruction.binary.destination) =              \
@@ -157,7 +235,6 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_CONVERT_SIGNED(kConvertS16ToF64, s16, f64);
         FELL_CONVERT_SIGNED(kConvertS32ToS64, s32, s64);
         FELL_CONVERT_SIGNED(kConvertS32ToF64, s32, f64);
-
         FELL_CONVERT_UNSIGNED(kConvertU8ToS16, u8, s16);
         FELL_CONVERT_UNSIGNED(kConvertU8ToS32, u8, s32);
         FELL_CONVERT_UNSIGNED(kConvertU8ToS64, u8, s64);
@@ -175,8 +252,36 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_CONVERT_UNSIGNED(kConvertU32ToS64, u32, s64);
         FELL_CONVERT_UNSIGNED(kConvertU32ToU64, u32, u64);
         FELL_CONVERT_UNSIGNED(kConvertU32ToF64, u32, f64);
-
         FELL_CONVERT_FLOAT(kConvertF32ToF64, f32, f64);
+
+        FELL_UNARY(kNegateS8, NegateSigned, s8);
+        FELL_UNARY(kNegateS16, NegateSigned, s16);
+        FELL_UNARY(kNegateS32, NegateSigned, s32);
+        FELL_UNARY(kNegateS64, NegateSigned, s64);
+        FELL_UNARY(kNegateF32, NegateFloat, f32);
+        FELL_UNARY(kNegateF64, NegateFloat, f64);
+
+        FELL_BINARY(kMultiplyS8, MultiplySigned, s8);
+        FELL_BINARY(kMultiplyS16, MultiplySigned, s16);
+        FELL_BINARY(kMultiplyS32, MultiplySigned, s32);
+        FELL_BINARY(kMultiplyS64, MultiplySigned, s64);
+        FELL_BINARY(kMultiplyU8, MultiplyUnsigned, u8);
+        FELL_BINARY(kMultiplyU16, MultiplyUnsigned, u16);
+        FELL_BINARY(kMultiplyU32, MultiplyUnsigned, u32);
+        FELL_BINARY(kMultiplyU64, MultiplyUnsigned, u64);
+        FELL_BINARY(kMultiplyF32, MultiplyFloat, f32);
+        FELL_BINARY(kMultiplyF64, MultiplyFloat, f64);
+
+        FELL_BINARY(kDivideS8, DivideSigned, s8);
+        FELL_BINARY(kDivideS16, DivideSigned, s16);
+        FELL_BINARY(kDivideS32, DivideSigned, s32);
+        FELL_BINARY(kDivideS64, DivideSigned, s64);
+        FELL_BINARY(kDivideU8, DivideUnsigned, u8);
+        FELL_BINARY(kDivideU16, DivideUnsigned, u16);
+        FELL_BINARY(kDivideU32, DivideUnsigned, u32);
+        FELL_BINARY(kDivideU64, DivideUnsigned, u64);
+        FELL_BINARY(kDivideF32, DivideFloat, f32);
+        FELL_BINARY(kDivideF64, DivideFloat, f64);
 
         FELL_BINARY(kAddS8, AddSigned, s8);
         FELL_BINARY(kAddS16, AddSigned, s16);
@@ -208,6 +313,7 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
     }
   }
 
+#undef FELL_UNARY
 #undef FELL_BINARY
 #undef FELL_CONVERT_FLOAT
 #undef FELL_CONVERT_UNSIGNED

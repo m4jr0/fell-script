@@ -160,6 +160,68 @@ Opcode GetConvertOpcode(Type source, Type destination) {
   FELL_UNREACHABLE();
 }
 
+Opcode GetMultiplyOpcode(Type type) {
+  switch (type) {
+    case Type::kS8:
+      return Opcode::kMultiplyS8;
+    case Type::kS16:
+      return Opcode::kMultiplyS16;
+    case Type::kS32:
+      return Opcode::kMultiplyS32;
+    case Type::kS64:
+      return Opcode::kMultiplyS64;
+    case Type::kU8:
+      return Opcode::kMultiplyU8;
+    case Type::kU16:
+      return Opcode::kMultiplyU16;
+    case Type::kU32:
+      return Opcode::kMultiplyU32;
+    case Type::kU64:
+      return Opcode::kMultiplyU64;
+    case Type::kF32:
+      return Opcode::kMultiplyF32;
+    case Type::kF64:
+      return Opcode::kMultiplyF64;
+
+    case Type::kInvalid:
+    case Type::kError:
+      FELL_UNREACHABLE();
+  }
+
+  FELL_UNREACHABLE();
+}
+
+Opcode GetDivideOpcode(Type type) {
+  switch (type) {
+    case Type::kS8:
+      return Opcode::kDivideS8;
+    case Type::kS16:
+      return Opcode::kDivideS16;
+    case Type::kS32:
+      return Opcode::kDivideS32;
+    case Type::kS64:
+      return Opcode::kDivideS64;
+    case Type::kU8:
+      return Opcode::kDivideU8;
+    case Type::kU16:
+      return Opcode::kDivideU16;
+    case Type::kU32:
+      return Opcode::kDivideU32;
+    case Type::kU64:
+      return Opcode::kDivideU64;
+    case Type::kF32:
+      return Opcode::kDivideF32;
+    case Type::kF64:
+      return Opcode::kDivideF64;
+
+    case Type::kInvalid:
+    case Type::kError:
+      FELL_UNREACHABLE();
+  }
+
+  FELL_UNREACHABLE();
+}
+
 Opcode GetAddOpcode(Type type) {
   switch (type) {
     case Type::kS8:
@@ -258,6 +320,52 @@ Value MakeConstantValue(const IrProgram& ir, const IrConstant& constant) {
   return value;
 }
 
+Opcode GetNegateOpcode(Type type) {
+  switch (type) {
+    case Type::kS8:
+      return Opcode::kNegateS8;
+    case Type::kS16:
+      return Opcode::kNegateS16;
+    case Type::kS32:
+      return Opcode::kNegateS32;
+    case Type::kS64:
+      return Opcode::kNegateS64;
+    case Type::kF32:
+      return Opcode::kNegateF32;
+    case Type::kF64:
+      return Opcode::kNegateF64;
+
+    default:
+      FELL_UNREACHABLE();
+  }
+}
+
+Opcode GetUnaryOpcode(IrOpcode opcode, Type type) {
+  switch (opcode) {
+    case IrOpcode::kNegate:
+      return GetNegateOpcode(type);
+
+    default:
+      FELL_UNREACHABLE();
+  }
+}
+
+Opcode GetBinaryOpcode(IrOpcode opcode, Type type) {
+  switch (opcode) {
+    case IrOpcode::kMultiply:
+      return GetMultiplyOpcode(type);
+    case IrOpcode::kDivide:
+      return GetDivideOpcode(type);
+    case IrOpcode::kAdd:
+      return GetAddOpcode(type);
+    case IrOpcode::kSubtract:
+      return GetSubtractOpcode(type);
+
+    default:
+      FELL_UNREACHABLE();
+  }
+}
+
 }  // namespace
 
 BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
@@ -300,6 +408,26 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
         break;
       }
 
+      case IrOpcode::kNegate: {
+        const Type type{
+            GetIrValue(ir, instruction.unary.destination).type,
+        };
+
+        FELL_ASSERT(GetIrValue(ir, instruction.unary.operand).type == type);
+
+        module.instructions.push_back({
+            .opcode = GetUnaryOpcode(instruction.opcode, type),
+            .unary =
+                {
+                    .destination = ToRegister(instruction.unary.destination),
+                    .operand = ToRegister(instruction.unary.operand),
+                },
+        });
+        break;
+      }
+
+      case IrOpcode::kMultiply:
+      case IrOpcode::kDivide:
       case IrOpcode::kAdd:
       case IrOpcode::kSubtract: {
         const Type type{
@@ -310,9 +438,7 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
         FELL_ASSERT(GetIrValue(ir, instruction.binary.right).type == type);
 
         module.instructions.push_back({
-            .opcode = instruction.opcode == IrOpcode::kAdd
-                          ? GetAddOpcode(type)
-                          : GetSubtractOpcode(type),
+            .opcode = GetBinaryOpcode(instruction.opcode, type),
             .binary =
                 {
                     .destination = ToRegister(instruction.binary.destination),

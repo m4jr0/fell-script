@@ -10,6 +10,14 @@ StringView ToString(TokenType type) {
       return "integer_literal";
     case TokenType::kFloatLiteral:
       return "float_literal";
+    case TokenType::kLeftParen:
+      return "left_paren";
+    case TokenType::kRightParen:
+      return "right_paren";
+    case TokenType::kStar:
+      return "star";
+    case TokenType::kSlash:
+      return "slash";
     case TokenType::kPlus:
       return "plus";
     case TokenType::kMinus:

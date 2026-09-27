@@ -54,6 +54,46 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       return destination;
     }
 
+    case ExpressionKind::kUnary: {
+      const auto& unary{expression.unary};
+
+      // Lower negated integer literals directly as signed constants.
+      if (unary.op == UnaryOperator::kNegate &&
+          unary.operand->kind == ExpressionKind::kIntegerLiteral &&
+          (unary.operand->integer_literal.explicit_type == Type::kInvalid ||
+           IsSignedInteger(unary.operand->integer_literal.explicit_type))) {
+        const Type type{semantics.Get(expression).type};
+        FELL_ASSERT(type != Type::kError);
+        FELL_ASSERT(IsSignedInteger(type));
+
+        const IrValueId destination{AllocateValue(program, type)};
+        EmitNegatedIntegerConstant(program, destination,
+                                   unary.operand->integer_literal.value, type);
+        return destination;
+      }
+
+      const IrValueId operand{
+          BuildExpression(*unary.operand, semantics, program)};
+
+      const Type result_type{semantics.Get(expression).type};
+      FELL_ASSERT(result_type != Type::kError);
+
+      const IrValueId destination{AllocateValue(program, result_type)};
+      IrOpcode opcode{};
+      switch (unary.op) {
+        case UnaryOperator::kNegate:
+          opcode = IrOpcode::kNegate;
+          break;
+      }
+
+      program.instructions.push_back({
+          .opcode = opcode,
+          .unary = {.destination = destination, .operand = operand},
+      });
+
+      return destination;
+    }
+
     case ExpressionKind::kBinary: {
       const auto& binary{expression.binary};
       IrValueId left{BuildExpression(*binary.left, semantics, program)};
@@ -67,6 +107,12 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       const IrValueId destination{AllocateValue(program, result_type)};
       IrOpcode opcode{};
       switch (binary.op) {
+        case BinaryOperator::kMultiply:
+          opcode = IrOpcode::kMultiply;
+          break;
+        case BinaryOperator::kDivide:
+          opcode = IrOpcode::kDivide;
+          break;
         case BinaryOperator::kAdd:
           opcode = IrOpcode::kAdd;
           break;
@@ -79,6 +125,7 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           .opcode = opcode,
           .binary = {.destination = destination, .left = left, .right = right},
       });
+
       return destination;
     }
   }
@@ -144,6 +191,26 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
     case Type::kInvalid:
     case Type::kError:
       FELL_UNREACHABLE();
+  }
+
+  program.instructions.push_back({
+      .opcode = IrOpcode::kConstant,
+      .constant = constant,
+  });
+}
+
+void IrBuilder::EmitNegatedIntegerConstant(IrProgram& program,
+                                           IrValueId destination, u64 magnitude,
+                                           Type type) {
+  FELL_ASSERT(IsSignedInteger(type));
+  FELL_ASSERT(CanRepresentNegativeInteger(type, magnitude));
+
+  IrConstant constant{.destination = destination, .s64_value = 0};
+
+  if (magnitude == static_cast<u64>(kMaxValue<s64>) + 1) {
+    constant.s64_value = kMinValue<s64>;
+  } else {
+    constant.s64_value = -static_cast<s64>(magnitude);
   }
 
   program.instructions.push_back({

@@ -57,6 +57,28 @@ Type SemanticAnalyzer::GetIntegerLiteralType(
   return Type::kInvalid;
 }
 
+Type SemanticAnalyzer::GetNegatedIntegerLiteralType(
+    const IntegerLiteralExpression& literal) {
+  if (literal.explicit_type != Type::kInvalid) {
+    if (!IsSignedInteger(literal.explicit_type) ||
+        !CanRepresentNegativeInteger(literal.explicit_type, literal.value)) {
+      return Type::kInvalid;
+    }
+
+    return literal.explicit_type;
+  }
+
+  if (CanRepresentNegativeInteger(Type::kS32, literal.value)) {
+    return Type::kS32;
+  }
+
+  if (CanRepresentNegativeInteger(Type::kS64, literal.value)) {
+    return Type::kS64;
+  }
+
+  return Type::kInvalid;
+}
+
 Type SemanticAnalyzer::GetFloatLiteralType(
     const FloatLiteralExpression& literal) {
   if (literal.explicit_type != Type::kInvalid) {
@@ -121,6 +143,77 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
 
       result.model.Set(expression, {
                                        .type = type,
+                                   });
+      return;
+    }
+
+    case ExpressionKind::kUnary: {
+      const auto& unary{expression.unary};
+
+      if (unary.op == UnaryOperator::kNegate &&
+          unary.operand->kind == ExpressionKind::kIntegerLiteral &&
+          (unary.operand->integer_literal.explicit_type == Type::kInvalid ||
+           IsSignedInteger(unary.operand->integer_literal.explicit_type))) {
+        const Type type{
+            GetNegatedIntegerLiteralType(unary.operand->integer_literal),
+        };
+
+        if (type == Type::kInvalid) {
+          result.model.Set(*unary.operand, {
+                                               .type = Type::kError,
+                                           });
+          result.model.Set(expression, {
+                                           .type = Type::kError,
+                                       });
+
+          result.diagnostics.push_back({
+              .severity = DiagnosticSeverity::kError,
+              .message = "integer literal is out of range",
+          });
+          return;
+        }
+
+        // The literal's type is contextual here: its positive magnitude may
+        // not be representable by the type, but the negated value is.
+        result.model.Set(*unary.operand, {
+                                             .type = type,
+                                         });
+        result.model.Set(expression, {
+                                         .type = type,
+                                     });
+        return;
+      }
+
+      AnalyzeExpression(*unary.operand, result);
+      const auto& operand{result.model.Get(*unary.operand)};
+
+      if (operand.type == Type::kError) {
+        result.model.Set(expression, {
+                                         .type = Type::kError,
+                                     });
+        return;
+      }
+
+      switch (unary.op) {
+        case UnaryOperator::kNegate:
+          if (!IsSignedInteger(operand.type) &&
+              !IsFloatingPoint(operand.type)) {
+            result.model.Set(expression, {
+                                             .type = Type::kError,
+                                         });
+
+            result.diagnostics.push_back({
+                .severity = DiagnosticSeverity::kError,
+                .message = "negation only applies to signed integers and "
+                           "floating-point types",
+            });
+            return;
+          }
+          break;
+      }
+
+      result.model.Set(expression, {
+                                       .type = operand.type,
                                    });
       return;
     }

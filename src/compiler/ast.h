@@ -7,7 +7,13 @@
 
 namespace fell {
 
+enum class UnaryOperator {
+  kNegate,
+};
+
 enum class BinaryOperator {
+  kMultiply,
+  kDivide,
   kAdd,
   kSubtract,
 };
@@ -19,10 +25,16 @@ struct ExpressionId {
 enum class ExpressionKind {
   kIntegerLiteral,
   kFloatLiteral,
+  kUnary,
   kBinary,
 };
 
 struct Expression;
+
+struct UnaryExpression {
+  UnaryOperator op;
+  Expression* operand;
+};
 
 struct BinaryExpression {
   Expression* left;
@@ -31,7 +43,7 @@ struct BinaryExpression {
 };
 
 // No negatives.
-// They will be handled with the unary minus operator.
+// They are handled with the unary minus operator.
 struct IntegerLiteralExpression {
   u64 value;
   Type explicit_type;
@@ -49,6 +61,7 @@ struct Expression {
   union {
     IntegerLiteralExpression integer_literal;
     FloatLiteralExpression float_literal;
+    UnaryExpression unary;
     BinaryExpression binary;
   };
 };
@@ -82,6 +95,8 @@ class Ast {
  public:
   Expression* CreateIntegerLiteralExpression(u64 value, Type explicit_type);
   Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type);
+
+  Expression* CreateUnaryExpression(UnaryOperator op, Expression* operand);
 
   Expression* CreateBinaryExpression(Expression* left, BinaryOperator op,
                                      Expression* right);

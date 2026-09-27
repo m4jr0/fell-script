@@ -12,7 +12,8 @@ struct ExpressionSemantics {
 
 class SemanticModel {
  public:
-  const ExpressionSemantics& Get(const Expression& expression) const;
+  [[nodiscard]] const ExpressionSemantics& Get(
+      const Expression& expression) const;
 
  private:
   friend class SemanticAnalyzer;
@@ -33,6 +34,8 @@ class SemanticAnalyzer {
 
  private:
   static Type GetIntegerLiteralType(const IntegerLiteralExpression& literal);
+  static Type GetNegatedIntegerLiteralType(
+      const IntegerLiteralExpression& literal);
   static Type GetFloatLiteralType(const FloatLiteralExpression& literal);
 
   void AnalyzeStatement(const Statement& statement, SemanticResult& result);

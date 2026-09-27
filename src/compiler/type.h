@@ -24,9 +24,15 @@ enum class Type {
 };
 
 bool IsNumericType(Type type);
+bool IsSignedInteger(Type type);
+bool IsUnsignedInteger(Type type);
+bool IsFloatingPoint(Type type);
+
 bool CanImplicitlyConvert(Type from, Type to);
-Type FindCommonNumericType(Type left, Type right);
 bool CanRepresentInteger(Type type, u64 value);
+bool CanRepresentNegativeInteger(Type type, u64 magnitude);
+
+Type FindCommonNumericType(Type left, Type right);
 
 StringView ToString(Type type);
 

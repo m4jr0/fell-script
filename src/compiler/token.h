@@ -9,6 +9,11 @@ enum class TokenType {
   kIntegerLiteral,
   kFloatLiteral,
 
+  kLeftParen,
+  kRightParen,
+
+  kStar,
+  kSlash,
   kPlus,
   kMinus,
   kSemicolon,

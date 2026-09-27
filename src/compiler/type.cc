@@ -28,6 +28,72 @@ bool IsNumericType(Type type) {
   FELL_UNREACHABLE();
 }
 
+bool IsSignedInteger(Type type) {
+  switch (type) {
+    case Type::kS8:
+    case Type::kS16:
+    case Type::kS32:
+    case Type::kS64:
+      return true;
+
+    case Type::kInvalid:
+    case Type::kError:
+    case Type::kU8:
+    case Type::kU16:
+    case Type::kU32:
+    case Type::kU64:
+    case Type::kF32:
+    case Type::kF64:
+      return false;
+  }
+
+  FELL_UNREACHABLE();
+}
+
+bool IsUnsignedInteger(Type type) {
+  switch (type) {
+    case Type::kU8:
+    case Type::kU16:
+    case Type::kU32:
+    case Type::kU64:
+      return true;
+
+    case Type::kInvalid:
+    case Type::kError:
+    case Type::kS8:
+    case Type::kS16:
+    case Type::kS32:
+    case Type::kS64:
+    case Type::kF32:
+    case Type::kF64:
+      return false;
+  }
+
+  FELL_UNREACHABLE();
+}
+
+bool IsFloatingPoint(Type type) {
+  switch (type) {
+    case Type::kF32:
+    case Type::kF64:
+      return true;
+
+    case Type::kInvalid:
+    case Type::kError:
+    case Type::kS8:
+    case Type::kS16:
+    case Type::kS32:
+    case Type::kS64:
+    case Type::kU8:
+    case Type::kU16:
+    case Type::kU32:
+    case Type::kU64:
+      return false;
+  }
+
+  FELL_UNREACHABLE();
+}
+
 bool CanImplicitlyConvert(Type from, Type to) {
   FELL_ASSERT(IsNumericType(from));
   FELL_ASSERT(IsNumericType(to));
@@ -124,6 +190,31 @@ bool CanRepresentInteger(Type type, u64 value) {
 
     case Type::kInvalid:
     case Type::kError:
+    case Type::kF32:
+    case Type::kF64:
+      return false;
+  }
+
+  FELL_UNREACHABLE();
+}
+
+bool CanRepresentNegativeInteger(Type type, u64 magnitude) {
+  switch (type) {
+    case Type::kS8:
+      return magnitude <= static_cast<u64>(kMaxValue<s8>) + 1;
+    case Type::kS16:
+      return magnitude <= static_cast<u64>(kMaxValue<s16>) + 1;
+    case Type::kS32:
+      return magnitude <= static_cast<u64>(kMaxValue<s32>) + 1;
+    case Type::kS64:
+      return magnitude <= static_cast<u64>(kMaxValue<s64>) + 1;
+
+    case Type::kInvalid:
+    case Type::kError:
+    case Type::kU8:
+    case Type::kU16:
+    case Type::kU32:
+    case Type::kU64:
     case Type::kF32:
     case Type::kF64:
       return false;

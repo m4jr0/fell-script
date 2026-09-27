@@ -8,8 +8,21 @@
 namespace fell {
 namespace {
 
+UnaryOperator GetUnaryOperator(TokenType type) {
+  switch (type) {
+    case TokenType::kMinus:
+      return UnaryOperator::kNegate;
+    default:
+      FELL_UNREACHABLE();
+  }
+}
+
 BinaryOperator GetBinaryOperator(TokenType type) {
   switch (type) {
+    case TokenType::kStar:
+      return BinaryOperator::kMultiply;
+    case TokenType::kSlash:
+      return BinaryOperator::kDivide;
     case TokenType::kPlus:
       return BinaryOperator::kAdd;
     case TokenType::kMinus:
@@ -69,11 +82,23 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     // kFloatLiteral
     {.prefix = &Parser::ParseFloatLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
+    // kLeftParen
+    {.prefix = &Parser::ParseGrouping, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kRightParen
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kStar
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kFactor},
+
+    // kSlash
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kFactor},
+
     // kPlus
     {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kTerm},
 
     // kMinus
-    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kTerm},
+    {.prefix = &Parser::ParseUnary, .infix = &Parser::ParseBinary, .precedence = Precedence::kTerm},
 
     // kSemicolon
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
@@ -199,6 +224,27 @@ Expression* Parser::ParseFloatLiteral() {
   }
 
   return ast_.CreateFloatLiteralExpression(value, explicit_type);
+}
+
+Expression* Parser::ParseGrouping() {
+  Expression* expression{ParseExpression()};
+
+  if (expression == nullptr || !Match(TokenType::kRightParen)) {
+    return nullptr;
+  }
+
+  return expression;
+}
+
+Expression* Parser::ParseUnary() {
+  const TokenType operator_type{previous_.type};
+  Expression* const operand{ParsePrecedence(Precedence::kUnary)};
+
+  if (operand == nullptr) {
+    return nullptr;
+  }
+
+  return ast_.CreateUnaryExpression(GetUnaryOperator(operator_type), operand);
 }
 
 Expression* Parser::ParseBinary(Expression* left) {

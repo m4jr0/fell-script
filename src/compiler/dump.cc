@@ -11,12 +11,48 @@
 namespace fell {
 namespace {
 
+StringView ToString(UnaryOperator op) {
+  switch (op) {
+    case UnaryOperator::kNegate:
+      return "-";
+  }
+
+  FELL_UNREACHABLE();
+}
+
 StringView ToString(BinaryOperator op) {
   switch (op) {
+    case BinaryOperator::kMultiply:
+      return "*";
+    case BinaryOperator::kDivide:
+      return "/";
     case BinaryOperator::kAdd:
       return "+";
     case BinaryOperator::kSubtract:
       return "-";
+  }
+
+  FELL_UNREACHABLE();
+}
+
+StringView ToString(IrOpcode opcode) {
+  switch (opcode) {
+    case IrOpcode::kConstant:
+      return "constant";
+    case IrOpcode::kConvert:
+      return "convert";
+    case IrOpcode::kNegate:
+      return "negate";
+    case IrOpcode::kMultiply:
+      return "multiply";
+    case IrOpcode::kDivide:
+      return "divide";
+    case IrOpcode::kAdd:
+      return "add";
+    case IrOpcode::kSubtract:
+      return "subtract";
+    case IrOpcode::kReturn:
+      return "return";
   }
 
   FELL_UNREACHABLE();
@@ -41,6 +77,12 @@ void DumpExpression(const Expression& expression, std::ostringstream& output,
                << "]";
       }
       output << '\n';
+      return;
+
+    case ExpressionKind::kUnary:
+      output << indent << "UnaryExpression (" << ToString(expression.unary.op)
+             << ")\n";
+      DumpExpression(*expression.unary.operand, output, String{indent} + "  ");
       return;
 
     case ExpressionKind::kBinary:
@@ -153,6 +195,19 @@ String DumpIr(const IrProgram& program) {
         break;
       }
 
+      case IrOpcode::kNegate: {
+        const Type type{
+            GetIrValue(program, instruction.unary.destination).type,
+        };
+
+        output << "  %" << instruction.unary.destination.value << " = negate "
+               << ToString(type) << " %" << instruction.unary.operand.value
+               << '\n';
+        break;
+      }
+
+      case IrOpcode::kMultiply:
+      case IrOpcode::kDivide:
       case IrOpcode::kAdd:
       case IrOpcode::kSubtract: {
         const Type type{
@@ -160,9 +215,9 @@ String DumpIr(const IrProgram& program) {
         };
 
         output << "  %" << instruction.binary.destination.value << " = "
-               << (instruction.opcode == IrOpcode::kAdd ? "add " : "subtract ")
-               << ToString(type) << " %" << instruction.binary.left.value
-               << ", %" << instruction.binary.right.value << '\n';
+               << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
+               << instruction.binary.left.value << ", %"
+               << instruction.binary.right.value << '\n';
         break;
       }
 

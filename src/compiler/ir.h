@@ -13,6 +13,9 @@ struct IrValueId {
 enum class IrOpcode {
   kConstant,
   kConvert,
+  kNegate,
+  kMultiply,
+  kDivide,
   kAdd,
   kSubtract,
   kReturn,
@@ -33,6 +36,11 @@ struct IrConvert {
   IrValueId source;
 };
 
+struct IrUnary {
+  IrValueId destination;
+  IrValueId operand;
+};
+
 struct IrBinary {
   IrValueId destination;
   IrValueId left;
@@ -49,6 +57,7 @@ struct IrInstruction {
   union {
     IrConstant constant;
     IrConvert convert;
+    IrUnary unary;
     IrBinary binary;
     IrReturn return_;
   };

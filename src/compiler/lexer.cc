@@ -20,6 +20,22 @@ Token Lexer::NextToken() {
   const char character{source_[position_]};
 
   switch (character) {
+    case '(':
+      ++position_;
+      return MakeToken(TokenType::kLeftParen, start);
+
+    case ')':
+      ++position_;
+      return MakeToken(TokenType::kRightParen, start);
+
+    case '*':
+      ++position_;
+      return MakeToken(TokenType::kStar, start);
+
+    case '/':
+      ++position_;
+      return MakeToken(TokenType::kSlash, start);
+
     case '+':
       ++position_;
       return MakeToken(TokenType::kPlus, start);

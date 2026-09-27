@@ -21,10 +21,12 @@ class Parser {
   enum class Precedence {
     kNone,
     kTerm,
+    kFactor,
+    kUnary,
   };
 
   using PrefixParseFunction = Expression* (Parser::*)();
-  using InfixParseFunction = Expression* (Parser::*)(Expression * left);
+  using InfixParseFunction = Expression* (Parser::*)(Expression*);
 
   struct ParseRule {
     PrefixParseFunction prefix;
@@ -43,6 +45,8 @@ class Parser {
 
   Expression* ParseIntegerLiteral();
   Expression* ParseFloatLiteral();
+  Expression* ParseGrouping();
+  Expression* ParseUnary();
   Expression* ParseBinary(Expression* left);
 
   Statement* ParseStatement();
