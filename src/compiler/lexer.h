@@ -15,9 +15,14 @@ class Lexer {
 
  private:
   char Advance();
+  char Peek() const;
+  char PeekNext() const;
   bool Consume(StringView text);
   bool Match(char expected);
-  void SkipWhitespace();
+
+  bool SkipTrivia(SourceLocation& error_start);
+  void SkipLineComment();
+  bool SkipBlockComment();
 
   Token MakeToken(TokenType type, SourceLocation start) const;
 

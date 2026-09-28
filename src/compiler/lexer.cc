@@ -8,7 +8,10 @@ namespace fell {
 Lexer::Lexer(StringView source) : source_(source) {}
 
 Token Lexer::NextToken() {
-  SkipWhitespace();
+  SourceLocation error_start{};
+  if (!SkipTrivia(error_start)) {
+    return MakeToken(TokenType::kInvalid, error_start);
+  }
 
   const SourceLocation start{
       .offset = position_,
@@ -97,6 +100,14 @@ char Lexer::Advance() {
   return character;
 }
 
+char Lexer::Peek() const {
+  return position_ < source_.size() ? source_[position_] : '\0';
+}
+
+char Lexer::PeekNext() const {
+  return position_ + 1 < source_.size() ? source_[position_ + 1] : '\0';
+}
+
 bool Lexer::Consume(StringView text) {
   if (source_.substr(position_, text.size()) != text) {
     return false;
@@ -118,10 +129,66 @@ bool Lexer::Match(char expected) {
   return true;
 }
 
-void Lexer::SkipWhitespace() {
-  while (position_ < source_.size() && IsWhitespace(source_[position_])) {
+bool Lexer::SkipTrivia(SourceLocation& error_start) {
+  while (position_ < source_.size()) {
+    if (IsWhitespace(Peek())) {
+      Advance();
+      continue;
+    }
+
+    if (Peek() != '/') {
+      return true;
+    }
+
+    if (PeekNext() == '/') {
+      SkipLineComment();
+      continue;
+    }
+
+    if (PeekNext() == '*') {
+      error_start = {
+          .offset = position_,
+          .line = line_,
+          .column = column_,
+      };
+
+      if (!SkipBlockComment()) {
+        return false;
+      }
+
+      continue;
+    }
+
+    return true;
+  }
+
+  return true;
+}
+
+void Lexer::SkipLineComment() {
+  Advance();
+  Advance();
+
+  while (position_ < source_.size() && Peek() != '\n') {
     Advance();
   }
+}
+
+bool Lexer::SkipBlockComment() {
+  Advance();
+  Advance();
+
+  while (position_ < source_.size()) {
+    if (Peek() == '*' && PeekNext() == '/') {
+      Advance();
+      Advance();
+      return true;
+    }
+
+    Advance();
+  }
+
+  return false;
 }
 
 Token Lexer::MakeToken(TokenType type, SourceLocation start) const {
