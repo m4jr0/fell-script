@@ -10,6 +10,7 @@ namespace fell {
 
 enum class UnaryOperator {
   kNegate,
+  kLogicalNot,
 };
 
 enum class BinaryOperator {
@@ -17,6 +18,13 @@ enum class BinaryOperator {
   kDivide,
   kAdd,
   kSubtract,
+
+  kEqual,
+  kNotEqual,
+  kLess,
+  kLessEqual,
+  kGreater,
+  kGreaterEqual,
 };
 
 struct ExpressionId {

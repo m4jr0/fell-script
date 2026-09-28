@@ -28,6 +28,20 @@ StringView ToString(TokenType type) {
       return "plus";
     case TokenType::kMinus:
       return "minus";
+    case TokenType::kBang:
+      return "bang";
+    case TokenType::kBangEqual:
+      return "bang_equal";
+    case TokenType::kEqualEqual:
+      return "equal_equal";
+    case TokenType::kLess:
+      return "less";
+    case TokenType::kLessEqual:
+      return "less_equal";
+    case TokenType::kGreater:
+      return "greater";
+    case TokenType::kGreaterEqual:
+      return "greater_equal";
     case TokenType::kSemicolon:
       return "semicolon";
     case TokenType::kEndOfFile:

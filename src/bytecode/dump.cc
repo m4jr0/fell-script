@@ -83,6 +83,8 @@ StringView ToString(Opcode opcode) {
       return "negate_f32";
     case Opcode::kNegateF64:
       return "negate_f64";
+    case Opcode::kLogicalNot:
+      return "logical_not";
     case Opcode::kMultiplyS8:
       return "multiply_s8";
     case Opcode::kMultiplyS16:
@@ -163,6 +165,130 @@ StringView ToString(Opcode opcode) {
       return "subtract_f32";
     case Opcode::kSubtractF64:
       return "subtract_f64";
+    case Opcode::kEqualBool:
+      return "equal_bool";
+    case Opcode::kEqualS8:
+      return "equal_s8";
+    case Opcode::kEqualS16:
+      return "equal_s16";
+    case Opcode::kEqualS32:
+      return "equal_s32";
+    case Opcode::kEqualS64:
+      return "equal_s64";
+    case Opcode::kEqualU8:
+      return "equal_u8";
+    case Opcode::kEqualU16:
+      return "equal_u16";
+    case Opcode::kEqualU32:
+      return "equal_u32";
+    case Opcode::kEqualU64:
+      return "equal_u64";
+    case Opcode::kEqualF32:
+      return "equal_f32";
+    case Opcode::kEqualF64:
+      return "equal_f64";
+    case Opcode::kNotEqualBool:
+      return "not_equal_bool";
+    case Opcode::kNotEqualS8:
+      return "not_equal_s8";
+    case Opcode::kNotEqualS16:
+      return "not_equal_s16";
+    case Opcode::kNotEqualS32:
+      return "not_equal_s32";
+    case Opcode::kNotEqualS64:
+      return "not_equal_s64";
+    case Opcode::kNotEqualU8:
+      return "not_equal_u8";
+    case Opcode::kNotEqualU16:
+      return "not_equal_u16";
+    case Opcode::kNotEqualU32:
+      return "not_equal_u32";
+    case Opcode::kNotEqualU64:
+      return "not_equal_u64";
+    case Opcode::kNotEqualF32:
+      return "not_equal_f32";
+    case Opcode::kNotEqualF64:
+      return "not_equal_f64";
+    case Opcode::kLessS8:
+      return "less_s8";
+    case Opcode::kLessS16:
+      return "less_s16";
+    case Opcode::kLessS32:
+      return "less_s32";
+    case Opcode::kLessS64:
+      return "less_s64";
+    case Opcode::kLessU8:
+      return "less_u8";
+    case Opcode::kLessU16:
+      return "less_u16";
+    case Opcode::kLessU32:
+      return "less_u32";
+    case Opcode::kLessU64:
+      return "less_u64";
+    case Opcode::kLessF32:
+      return "less_f32";
+    case Opcode::kLessF64:
+      return "less_f64";
+    case Opcode::kLessEqualS8:
+      return "less_equal_s8";
+    case Opcode::kLessEqualS16:
+      return "less_equal_s16";
+    case Opcode::kLessEqualS32:
+      return "less_equal_s32";
+    case Opcode::kLessEqualS64:
+      return "less_equal_s64";
+    case Opcode::kLessEqualU8:
+      return "less_equal_u8";
+    case Opcode::kLessEqualU16:
+      return "less_equal_u16";
+    case Opcode::kLessEqualU32:
+      return "less_equal_u32";
+    case Opcode::kLessEqualU64:
+      return "less_equal_u64";
+    case Opcode::kLessEqualF32:
+      return "less_equal_f32";
+    case Opcode::kLessEqualF64:
+      return "less_equal_f64";
+    case Opcode::kGreaterS8:
+      return "greater_s8";
+    case Opcode::kGreaterS16:
+      return "greater_s16";
+    case Opcode::kGreaterS32:
+      return "greater_s32";
+    case Opcode::kGreaterS64:
+      return "greater_s64";
+    case Opcode::kGreaterU8:
+      return "greater_u8";
+    case Opcode::kGreaterU16:
+      return "greater_u16";
+    case Opcode::kGreaterU32:
+      return "greater_u32";
+    case Opcode::kGreaterU64:
+      return "greater_u64";
+    case Opcode::kGreaterF32:
+      return "greater_f32";
+    case Opcode::kGreaterF64:
+      return "greater_f64";
+    case Opcode::kGreaterEqualS8:
+      return "greater_equal_s8";
+    case Opcode::kGreaterEqualS16:
+      return "greater_equal_s16";
+    case Opcode::kGreaterEqualS32:
+      return "greater_equal_s32";
+    case Opcode::kGreaterEqualS64:
+      return "greater_equal_s64";
+    case Opcode::kGreaterEqualU8:
+      return "greater_equal_u8";
+    case Opcode::kGreaterEqualU16:
+      return "greater_equal_u16";
+    case Opcode::kGreaterEqualU32:
+      return "greater_equal_u32";
+    case Opcode::kGreaterEqualU64:
+      return "greater_equal_u64";
+    case Opcode::kGreaterEqualF32:
+      return "greater_equal_f32";
+    case Opcode::kGreaterEqualF64:
+      return "greater_equal_f64";
     case Opcode::kReturn:
       return "return";
   }
@@ -225,6 +351,7 @@ String DumpBytecode(const BytecodeModule& module) {
       case Opcode::kNegateS64:
       case Opcode::kNegateF32:
       case Opcode::kNegateF64:
+      case Opcode::kLogicalNot:
         output << " r" << instruction.unary.destination << ", r"
                << instruction.unary.operand;
         break;
@@ -269,6 +396,68 @@ String DumpBytecode(const BytecodeModule& module) {
       case Opcode::kSubtractU64:
       case Opcode::kSubtractF32:
       case Opcode::kSubtractF64:
+      case Opcode::kEqualBool:
+      case Opcode::kEqualS8:
+      case Opcode::kEqualS16:
+      case Opcode::kEqualS32:
+      case Opcode::kEqualS64:
+      case Opcode::kEqualU8:
+      case Opcode::kEqualU16:
+      case Opcode::kEqualU32:
+      case Opcode::kEqualU64:
+      case Opcode::kEqualF32:
+      case Opcode::kEqualF64:
+      case Opcode::kNotEqualBool:
+      case Opcode::kNotEqualS8:
+      case Opcode::kNotEqualS16:
+      case Opcode::kNotEqualS32:
+      case Opcode::kNotEqualS64:
+      case Opcode::kNotEqualU8:
+      case Opcode::kNotEqualU16:
+      case Opcode::kNotEqualU32:
+      case Opcode::kNotEqualU64:
+      case Opcode::kNotEqualF32:
+      case Opcode::kNotEqualF64:
+      case Opcode::kLessS8:
+      case Opcode::kLessS16:
+      case Opcode::kLessS32:
+      case Opcode::kLessS64:
+      case Opcode::kLessU8:
+      case Opcode::kLessU16:
+      case Opcode::kLessU32:
+      case Opcode::kLessU64:
+      case Opcode::kLessF32:
+      case Opcode::kLessF64:
+      case Opcode::kLessEqualS8:
+      case Opcode::kLessEqualS16:
+      case Opcode::kLessEqualS32:
+      case Opcode::kLessEqualS64:
+      case Opcode::kLessEqualU8:
+      case Opcode::kLessEqualU16:
+      case Opcode::kLessEqualU32:
+      case Opcode::kLessEqualU64:
+      case Opcode::kLessEqualF32:
+      case Opcode::kLessEqualF64:
+      case Opcode::kGreaterS8:
+      case Opcode::kGreaterS16:
+      case Opcode::kGreaterS32:
+      case Opcode::kGreaterS64:
+      case Opcode::kGreaterU8:
+      case Opcode::kGreaterU16:
+      case Opcode::kGreaterU32:
+      case Opcode::kGreaterU64:
+      case Opcode::kGreaterF32:
+      case Opcode::kGreaterF64:
+      case Opcode::kGreaterEqualS8:
+      case Opcode::kGreaterEqualS16:
+      case Opcode::kGreaterEqualS32:
+      case Opcode::kGreaterEqualS64:
+      case Opcode::kGreaterEqualU8:
+      case Opcode::kGreaterEqualU16:
+      case Opcode::kGreaterEqualU32:
+      case Opcode::kGreaterEqualU64:
+      case Opcode::kGreaterEqualF32:
+      case Opcode::kGreaterEqualF64:
         output << " r" << instruction.binary.destination << ", r"
                << instruction.binary.left << ", r" << instruction.binary.right;
         break;

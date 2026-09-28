@@ -22,7 +22,17 @@ enum class TokenType {
   kSlash,
   kPlus,
   kMinus,
+
+  kBang,
+  kBangEqual,
+  kEqualEqual,
+  kLess,
+  kLessEqual,
+  kGreater,
+  kGreaterEqual,
+
   kSemicolon,
+
   kEndOfFile,
   kInvalid,
 

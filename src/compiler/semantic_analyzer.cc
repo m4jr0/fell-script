@@ -170,6 +170,18 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
             return;
           }
           break;
+
+        case UnaryOperator::kLogicalNot:
+          if (operand.type != Type::kBool) {
+            result.model.Set(expression, {.type = Type::kError});
+            result.diagnostics.push_back({
+                .severity = DiagnosticSeverity::kError,
+                .message = "logical not only applies to bool",
+                .span = expression.span,
+            });
+            return;
+          }
+          break;
       }
 
       result.model.Set(expression, {.type = operand.type});
@@ -188,11 +200,29 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
         return;
       }
 
+      const bool is_arithmetic{binary.op == BinaryOperator::kMultiply ||
+                               binary.op == BinaryOperator::kDivide ||
+                               binary.op == BinaryOperator::kAdd ||
+                               binary.op == BinaryOperator::kSubtract};
+      const bool is_equality{binary.op == BinaryOperator::kEqual ||
+                             binary.op == BinaryOperator::kNotEqual};
+
+      if (is_equality && left.type == Type::kBool &&
+          right.type == Type::kBool) {
+        result.model.Set(expression,
+                         {.type = Type::kBool, .operand_type = Type::kBool});
+        return;
+      }
+
       if (!IsNumericType(left.type) || !IsNumericType(right.type)) {
         result.model.Set(expression, {.type = Type::kError});
         result.diagnostics.push_back({
             .severity = DiagnosticSeverity::kError,
-            .message = "arithmetic operators only apply to numeric types",
+            .message = is_arithmetic
+                           ? "arithmetic operators only apply to numeric types"
+                       : is_equality
+                           ? "equality operands must both be bool or numeric"
+                           : "ordering operators only apply to numeric types",
             .span = expression.span,
         });
         return;
@@ -209,7 +239,9 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
         return;
       }
 
-      result.model.Set(expression, {.type = common_type});
+      result.model.Set(expression,
+                       {.type = is_arithmetic ? common_type : Type::kBool,
+                        .operand_type = common_type});
       return;
     }
   }

@@ -188,11 +188,11 @@ bool IsConvertOpcode(Opcode opcode) {
 }
 
 bool IsUnaryOpcode(Opcode opcode) {
-  return opcode >= Opcode::kNegateS8 && opcode <= Opcode::kNegateF64;
+  return opcode >= Opcode::kNegateS8 && opcode <= Opcode::kLogicalNot;
 }
 
 bool IsBinaryOpcode(Opcode opcode) {
-  return opcode >= Opcode::kMultiplyS8 && opcode <= Opcode::kSubtractF64;
+  return opcode >= Opcode::kMultiplyS8 && opcode <= Opcode::kGreaterEqualF64;
 }
 
 bool IsValidOpcode(u8 value) {

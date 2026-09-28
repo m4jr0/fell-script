@@ -8,6 +8,7 @@ namespace fell {
 
 struct ExpressionSemantics {
   Type type{Type::kInvalid};
+  Type operand_type{Type::kInvalid};
 };
 
 class SemanticModel {

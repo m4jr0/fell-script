@@ -92,6 +92,9 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
         case UnaryOperator::kNegate:
           opcode = IrOpcode::kNegate;
           break;
+        case UnaryOperator::kLogicalNot:
+          opcode = IrOpcode::kLogicalNot;
+          break;
       }
 
       program.instructions.push_back({
@@ -107,10 +110,14 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       IrValueId left{BuildExpression(*binary.left, semantics, program)};
       IrValueId right{BuildExpression(*binary.right, semantics, program)};
 
-      const Type result_type{semantics.Get(expression).type};
+      const auto& expression_semantics{semantics.Get(expression)};
+      const Type result_type{expression_semantics.type};
+      const Type operand_type{expression_semantics.operand_type == Type::kInvalid
+                                  ? result_type
+                                  : expression_semantics.operand_type};
       FELL_ASSERT(result_type != Type::kError);
-      left = ConvertIfNeeded(left, result_type, program);
-      right = ConvertIfNeeded(right, result_type, program);
+      left = ConvertIfNeeded(left, operand_type, program);
+      right = ConvertIfNeeded(right, operand_type, program);
 
       const IrValueId destination{AllocateValue(program, result_type)};
       IrOpcode opcode{};
@@ -126,6 +133,24 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           break;
         case BinaryOperator::kSubtract:
           opcode = IrOpcode::kSubtract;
+          break;
+        case BinaryOperator::kEqual:
+          opcode = IrOpcode::kEqual;
+          break;
+        case BinaryOperator::kNotEqual:
+          opcode = IrOpcode::kNotEqual;
+          break;
+        case BinaryOperator::kLess:
+          opcode = IrOpcode::kLess;
+          break;
+        case BinaryOperator::kLessEqual:
+          opcode = IrOpcode::kLessEqual;
+          break;
+        case BinaryOperator::kGreater:
+          opcode = IrOpcode::kGreater;
+          break;
+        case BinaryOperator::kGreaterEqual:
+          opcode = IrOpcode::kGreaterEqual;
           break;
       }
 

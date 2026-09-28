@@ -22,6 +22,8 @@ UnaryOperator GetUnaryOperator(TokenType type) {
   switch (type) {
     case TokenType::kMinus:
       return UnaryOperator::kNegate;
+    case TokenType::kBang:
+      return UnaryOperator::kLogicalNot;
     default:
       FELL_UNREACHABLE();
   }
@@ -37,6 +39,18 @@ BinaryOperator GetBinaryOperator(TokenType type) {
       return BinaryOperator::kAdd;
     case TokenType::kMinus:
       return BinaryOperator::kSubtract;
+    case TokenType::kBangEqual:
+      return BinaryOperator::kNotEqual;
+    case TokenType::kEqualEqual:
+      return BinaryOperator::kEqual;
+    case TokenType::kLess:
+      return BinaryOperator::kLess;
+    case TokenType::kLessEqual:
+      return BinaryOperator::kLessEqual;
+    case TokenType::kGreater:
+      return BinaryOperator::kGreater;
+    case TokenType::kGreaterEqual:
+      return BinaryOperator::kGreaterEqual;
     default:
       FELL_UNREACHABLE();
   }
@@ -143,6 +157,27 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     // kMinus
     {.prefix = &Parser::ParseUnary, .infix = &Parser::ParseBinary, .precedence = Precedence::kTerm},
 
+    // kBang
+    {.prefix = &Parser::ParseUnary, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kBangEqual
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kEquality},
+
+    // kEqualEqual
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kEquality},
+
+    // kLess
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kComparison},
+
+    // kLessEqual
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kComparison},
+
+    // kGreater
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kComparison},
+
+    // kGreaterEqual
+    {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kComparison},
+
     // kSemicolon
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
@@ -189,7 +224,9 @@ void Parser::ErrorAt(const Token& token, StringView message) {
 
 void Parser::ErrorAtCurrent(StringView message) { ErrorAt(current_, message); }
 
-void Parser::ErrorAtPrevious(StringView message) { ErrorAt(previous_, message); }
+void Parser::ErrorAtPrevious(StringView message) {
+  ErrorAt(previous_, message);
+}
 
 void Parser::Synchronize() {
   panic_mode_ = false;
@@ -358,7 +395,8 @@ Expression* Parser::ParseBinary(Expression* left) {
   }
 
   return ast_.CreateBinaryExpression(left, GetBinaryOperator(operator_type),
-                                     right, MergeSpans(left->span, right->span));
+                                     right,
+                                     MergeSpans(left->span, right->span));
 }
 
 Statement* Parser::ParseStatement() {

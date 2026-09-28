@@ -13,11 +13,22 @@ struct IrValueId {
 enum class IrOpcode {
   kConstant,
   kConvert,
+
   kNegate,
+  kLogicalNot,
+
   kMultiply,
   kDivide,
   kAdd,
   kSubtract,
+
+  kEqual,
+  kNotEqual,
+  kLess,
+  kLessEqual,
+  kGreater,
+  kGreaterEqual,
+
   kReturn,
 };
 

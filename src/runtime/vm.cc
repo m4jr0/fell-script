@@ -175,6 +175,157 @@ ValueData SubtractFloat(ValueData left, ValueData right) {
 
 }  // namespace
 
+template <typename T>
+T ReadSigned(ValueData value) {
+  return static_cast<T>(value.s64_value);
+}
+template <typename T>
+T ReadUnsigned(ValueData value) {
+  return static_cast<T>(value.u64_value);
+}
+template <typename T>
+T ReadFloat(ValueData value) {
+  return static_cast<T>(value.f64_value);
+}
+
+template <typename T>
+ValueData EqualSigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadSigned<T>(left) == ReadSigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData EqualUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadUnsigned<T>(left) == ReadUnsigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData EqualFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadFloat<T>(left) == ReadFloat<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData NotEqualSigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadSigned<T>(left) != ReadSigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData NotEqualUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadUnsigned<T>(left) != ReadUnsigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData NotEqualFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadFloat<T>(left) != ReadFloat<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData LessSigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadSigned<T>(left) < ReadSigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData LessUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadUnsigned<T>(left) < ReadUnsigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData LessFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadFloat<T>(left) < ReadFloat<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData LessEqualSigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadSigned<T>(left) <= ReadSigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData LessEqualUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadUnsigned<T>(left) <= ReadUnsigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData LessEqualFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadFloat<T>(left) <= ReadFloat<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData GreaterSigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadSigned<T>(left) > ReadSigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData GreaterUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadUnsigned<T>(left) > ReadUnsigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData GreaterFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadFloat<T>(left) > ReadFloat<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData GreaterEqualSigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadSigned<T>(left) >= ReadSigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData GreaterEqualUnsigned(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadUnsigned<T>(left) >= ReadUnsigned<T>(right);
+  return result;
+}
+
+template <typename T>
+ValueData GreaterEqualFloat(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = ReadFloat<T>(left) >= ReadFloat<T>(right);
+  return result;
+}
+
+ValueData EqualBool(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = left.bool_value == right.bool_value;
+  return result;
+}
+
+ValueData NotEqualBool(ValueData left, ValueData right) {
+  ValueData result{};
+  result.bool_value = left.bool_value != right.bool_value;
+  return result;
+}
+
 std::optional<Value> Vm::Execute(const BytecodeModule& module) {
   FELL_ASSERT(module.register_count <= kMaxRegisterCount);
 
@@ -261,6 +412,11 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_UNARY(kNegateF32, NegateFloat, f32);
         FELL_UNARY(kNegateF64, NegateFloat, f64);
 
+      case Opcode::kLogicalNot:
+        get_register(instruction.unary.destination).bool_value =
+            !get_register(instruction.unary.operand).bool_value;
+        break;
+
         FELL_BINARY(kMultiplyS8, MultiplySigned, s8);
         FELL_BINARY(kMultiplyS16, MultiplySigned, s16);
         FELL_BINARY(kMultiplyS32, MultiplySigned, s32);
@@ -304,6 +460,84 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_BINARY(kSubtractU64, SubtractUnsigned, u64);
         FELL_BINARY(kSubtractF32, SubtractFloat, f32);
         FELL_BINARY(kSubtractF64, SubtractFloat, f64);
+
+      case Opcode::kEqualBool:
+        get_register(instruction.binary.destination) =
+            EqualBool(get_register(instruction.binary.left),
+                      get_register(instruction.binary.right));
+        break;
+
+        FELL_BINARY(kEqualS8, EqualSigned, s8);
+        FELL_BINARY(kEqualS16, EqualSigned, s16);
+        FELL_BINARY(kEqualS32, EqualSigned, s32);
+        FELL_BINARY(kEqualS64, EqualSigned, s64);
+        FELL_BINARY(kEqualU8, EqualUnsigned, u8);
+        FELL_BINARY(kEqualU16, EqualUnsigned, u16);
+        FELL_BINARY(kEqualU32, EqualUnsigned, u32);
+        FELL_BINARY(kEqualU64, EqualUnsigned, u64);
+        FELL_BINARY(kEqualF32, EqualFloat, f32);
+        FELL_BINARY(kEqualF64, EqualFloat, f64);
+
+      case Opcode::kNotEqualBool:
+        get_register(instruction.binary.destination) =
+            NotEqualBool(get_register(instruction.binary.left),
+                         get_register(instruction.binary.right));
+        break;
+
+        FELL_BINARY(kNotEqualS8, NotEqualSigned, s8);
+        FELL_BINARY(kNotEqualS16, NotEqualSigned, s16);
+        FELL_BINARY(kNotEqualS32, NotEqualSigned, s32);
+        FELL_BINARY(kNotEqualS64, NotEqualSigned, s64);
+        FELL_BINARY(kNotEqualU8, NotEqualUnsigned, u8);
+        FELL_BINARY(kNotEqualU16, NotEqualUnsigned, u16);
+        FELL_BINARY(kNotEqualU32, NotEqualUnsigned, u32);
+        FELL_BINARY(kNotEqualU64, NotEqualUnsigned, u64);
+        FELL_BINARY(kNotEqualF32, NotEqualFloat, f32);
+        FELL_BINARY(kNotEqualF64, NotEqualFloat, f64);
+
+        FELL_BINARY(kLessS8, LessSigned, s8);
+        FELL_BINARY(kLessS16, LessSigned, s16);
+        FELL_BINARY(kLessS32, LessSigned, s32);
+        FELL_BINARY(kLessS64, LessSigned, s64);
+        FELL_BINARY(kLessU8, LessUnsigned, u8);
+        FELL_BINARY(kLessU16, LessUnsigned, u16);
+        FELL_BINARY(kLessU32, LessUnsigned, u32);
+        FELL_BINARY(kLessU64, LessUnsigned, u64);
+        FELL_BINARY(kLessF32, LessFloat, f32);
+        FELL_BINARY(kLessF64, LessFloat, f64);
+
+        FELL_BINARY(kLessEqualS8, LessEqualSigned, s8);
+        FELL_BINARY(kLessEqualS16, LessEqualSigned, s16);
+        FELL_BINARY(kLessEqualS32, LessEqualSigned, s32);
+        FELL_BINARY(kLessEqualS64, LessEqualSigned, s64);
+        FELL_BINARY(kLessEqualU8, LessEqualUnsigned, u8);
+        FELL_BINARY(kLessEqualU16, LessEqualUnsigned, u16);
+        FELL_BINARY(kLessEqualU32, LessEqualUnsigned, u32);
+        FELL_BINARY(kLessEqualU64, LessEqualUnsigned, u64);
+        FELL_BINARY(kLessEqualF32, LessEqualFloat, f32);
+        FELL_BINARY(kLessEqualF64, LessEqualFloat, f64);
+
+        FELL_BINARY(kGreaterS8, GreaterSigned, s8);
+        FELL_BINARY(kGreaterS16, GreaterSigned, s16);
+        FELL_BINARY(kGreaterS32, GreaterSigned, s32);
+        FELL_BINARY(kGreaterS64, GreaterSigned, s64);
+        FELL_BINARY(kGreaterU8, GreaterUnsigned, u8);
+        FELL_BINARY(kGreaterU16, GreaterUnsigned, u16);
+        FELL_BINARY(kGreaterU32, GreaterUnsigned, u32);
+        FELL_BINARY(kGreaterU64, GreaterUnsigned, u64);
+        FELL_BINARY(kGreaterF32, GreaterFloat, f32);
+        FELL_BINARY(kGreaterF64, GreaterFloat, f64);
+
+        FELL_BINARY(kGreaterEqualS8, GreaterEqualSigned, s8);
+        FELL_BINARY(kGreaterEqualS16, GreaterEqualSigned, s16);
+        FELL_BINARY(kGreaterEqualS32, GreaterEqualSigned, s32);
+        FELL_BINARY(kGreaterEqualS64, GreaterEqualSigned, s64);
+        FELL_BINARY(kGreaterEqualU8, GreaterEqualUnsigned, u8);
+        FELL_BINARY(kGreaterEqualU16, GreaterEqualUnsigned, u16);
+        FELL_BINARY(kGreaterEqualU32, GreaterEqualUnsigned, u32);
+        FELL_BINARY(kGreaterEqualU64, GreaterEqualUnsigned, u64);
+        FELL_BINARY(kGreaterEqualF32, GreaterEqualFloat, f32);
+        FELL_BINARY(kGreaterEqualF64, GreaterEqualFloat, f64);
 
       case Opcode::kReturn:
         return Value{

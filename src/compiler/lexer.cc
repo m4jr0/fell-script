@@ -47,6 +47,26 @@ Token Lexer::NextToken() {
       Advance();
       return MakeToken(TokenType::kMinus, start);
 
+    case '!':
+      Advance();
+      return MakeToken(Match('=') ? TokenType::kBangEqual : TokenType::kBang,
+                       start);
+
+    case '=':
+      Advance();
+      return MakeToken(
+          Match('=') ? TokenType::kEqualEqual : TokenType::kInvalid, start);
+
+    case '<':
+      Advance();
+      return MakeToken(Match('=') ? TokenType::kLessEqual : TokenType::kLess,
+                       start);
+
+    case '>':
+      Advance();
+      return MakeToken(
+          Match('=') ? TokenType::kGreaterEqual : TokenType::kGreater, start);
+
     case ';':
       Advance();
       return MakeToken(TokenType::kSemicolon, start);
@@ -86,6 +106,15 @@ bool Lexer::Consume(StringView text) {
     Advance();
   }
 
+  return true;
+}
+
+bool Lexer::Match(char expected) {
+  if (position_ >= source_.size() || source_[position_] != expected) {
+    return false;
+  }
+
+  Advance();
   return true;
 }
 

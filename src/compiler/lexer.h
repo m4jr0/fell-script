@@ -16,6 +16,7 @@ class Lexer {
  private:
   char Advance();
   bool Consume(StringView text);
+  bool Match(char expected);
   void SkipWhitespace();
 
   Token MakeToken(TokenType type, SourceLocation start) const;

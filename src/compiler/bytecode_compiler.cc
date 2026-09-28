@@ -291,6 +291,99 @@ Opcode GetSubtractOpcode(Type type) {
   FELL_UNREACHABLE();
 }
 
+Opcode GetComparisonOpcode(IrOpcode opcode, Type type) {
+  switch (opcode) {
+    case IrOpcode::kEqual:
+      switch (type) {
+        case Type::kBool: return Opcode::kEqualBool;
+        case Type::kS8: return Opcode::kEqualS8;
+        case Type::kS16: return Opcode::kEqualS16;
+        case Type::kS32: return Opcode::kEqualS32;
+        case Type::kS64: return Opcode::kEqualS64;
+        case Type::kU8: return Opcode::kEqualU8;
+        case Type::kU16: return Opcode::kEqualU16;
+        case Type::kU32: return Opcode::kEqualU32;
+        case Type::kU64: return Opcode::kEqualU64;
+        case Type::kF32: return Opcode::kEqualF32;
+        case Type::kF64: return Opcode::kEqualF64;
+        default: FELL_UNREACHABLE();
+      }
+    case IrOpcode::kNotEqual:
+      switch (type) {
+        case Type::kBool: return Opcode::kNotEqualBool;
+        case Type::kS8: return Opcode::kNotEqualS8;
+        case Type::kS16: return Opcode::kNotEqualS16;
+        case Type::kS32: return Opcode::kNotEqualS32;
+        case Type::kS64: return Opcode::kNotEqualS64;
+        case Type::kU8: return Opcode::kNotEqualU8;
+        case Type::kU16: return Opcode::kNotEqualU16;
+        case Type::kU32: return Opcode::kNotEqualU32;
+        case Type::kU64: return Opcode::kNotEqualU64;
+        case Type::kF32: return Opcode::kNotEqualF32;
+        case Type::kF64: return Opcode::kNotEqualF64;
+        default: FELL_UNREACHABLE();
+      }
+    case IrOpcode::kLess:
+      switch (type) {
+        case Type::kS8: return Opcode::kLessS8;
+        case Type::kS16: return Opcode::kLessS16;
+        case Type::kS32: return Opcode::kLessS32;
+        case Type::kS64: return Opcode::kLessS64;
+        case Type::kU8: return Opcode::kLessU8;
+        case Type::kU16: return Opcode::kLessU16;
+        case Type::kU32: return Opcode::kLessU32;
+        case Type::kU64: return Opcode::kLessU64;
+        case Type::kF32: return Opcode::kLessF32;
+        case Type::kF64: return Opcode::kLessF64;
+        default: FELL_UNREACHABLE();
+      }
+    case IrOpcode::kLessEqual:
+      switch (type) {
+        case Type::kS8: return Opcode::kLessEqualS8;
+        case Type::kS16: return Opcode::kLessEqualS16;
+        case Type::kS32: return Opcode::kLessEqualS32;
+        case Type::kS64: return Opcode::kLessEqualS64;
+        case Type::kU8: return Opcode::kLessEqualU8;
+        case Type::kU16: return Opcode::kLessEqualU16;
+        case Type::kU32: return Opcode::kLessEqualU32;
+        case Type::kU64: return Opcode::kLessEqualU64;
+        case Type::kF32: return Opcode::kLessEqualF32;
+        case Type::kF64: return Opcode::kLessEqualF64;
+        default: FELL_UNREACHABLE();
+      }
+    case IrOpcode::kGreater:
+      switch (type) {
+        case Type::kS8: return Opcode::kGreaterS8;
+        case Type::kS16: return Opcode::kGreaterS16;
+        case Type::kS32: return Opcode::kGreaterS32;
+        case Type::kS64: return Opcode::kGreaterS64;
+        case Type::kU8: return Opcode::kGreaterU8;
+        case Type::kU16: return Opcode::kGreaterU16;
+        case Type::kU32: return Opcode::kGreaterU32;
+        case Type::kU64: return Opcode::kGreaterU64;
+        case Type::kF32: return Opcode::kGreaterF32;
+        case Type::kF64: return Opcode::kGreaterF64;
+        default: FELL_UNREACHABLE();
+      }
+    case IrOpcode::kGreaterEqual:
+      switch (type) {
+        case Type::kS8: return Opcode::kGreaterEqualS8;
+        case Type::kS16: return Opcode::kGreaterEqualS16;
+        case Type::kS32: return Opcode::kGreaterEqualS32;
+        case Type::kS64: return Opcode::kGreaterEqualS64;
+        case Type::kU8: return Opcode::kGreaterEqualU8;
+        case Type::kU16: return Opcode::kGreaterEqualU16;
+        case Type::kU32: return Opcode::kGreaterEqualU32;
+        case Type::kU64: return Opcode::kGreaterEqualU64;
+        case Type::kF32: return Opcode::kGreaterEqualF32;
+        case Type::kF64: return Opcode::kGreaterEqualF64;
+        default: FELL_UNREACHABLE();
+      }
+    default:
+      FELL_UNREACHABLE();
+  }
+}
+
 Value MakeConstantValue(const IrProgram& ir, const IrConstant& constant) {
   const Type type{GetIrValue(ir, constant.destination).type};
 
@@ -355,6 +448,9 @@ Opcode GetUnaryOpcode(IrOpcode opcode, Type type) {
   switch (opcode) {
     case IrOpcode::kNegate:
       return GetNegateOpcode(type);
+    case IrOpcode::kLogicalNot:
+      FELL_ASSERT(type == Type::kBool);
+      return Opcode::kLogicalNot;
 
     default:
       FELL_UNREACHABLE();
@@ -419,7 +515,8 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
         break;
       }
 
-      case IrOpcode::kNegate: {
+      case IrOpcode::kNegate:
+      case IrOpcode::kLogicalNot: {
         const Type type{
             GetIrValue(ir, instruction.unary.destination).type,
         };
@@ -450,6 +547,32 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
 
         module.instructions.push_back({
             .opcode = GetBinaryOpcode(instruction.opcode, type),
+            .binary =
+                {
+                    .destination = ToRegister(instruction.binary.destination),
+                    .left = ToRegister(instruction.binary.left),
+                    .right = ToRegister(instruction.binary.right),
+                },
+        });
+        break;
+      }
+
+      case IrOpcode::kEqual:
+      case IrOpcode::kNotEqual:
+      case IrOpcode::kLess:
+      case IrOpcode::kLessEqual:
+      case IrOpcode::kGreater:
+      case IrOpcode::kGreaterEqual: {
+        const Type operand_type{
+            GetIrValue(ir, instruction.binary.left).type,
+        };
+        FELL_ASSERT(GetIrValue(ir, instruction.binary.right).type ==
+                    operand_type);
+        FELL_ASSERT(GetIrValue(ir, instruction.binary.destination).type ==
+                    Type::kBool);
+
+        module.instructions.push_back({
+            .opcode = GetComparisonOpcode(instruction.opcode, operand_type),
             .binary =
                 {
                     .destination = ToRegister(instruction.binary.destination),

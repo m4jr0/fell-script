@@ -24,6 +24,8 @@ class Parser {
  private:
   enum class Precedence {
     kNone,
+    kEquality,
+    kComparison,
     kTerm,
     kFactor,
     kUnary,

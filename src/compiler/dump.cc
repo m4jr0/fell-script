@@ -15,6 +15,8 @@ StringView ToString(UnaryOperator op) {
   switch (op) {
     case UnaryOperator::kNegate:
       return "-";
+    case UnaryOperator::kLogicalNot:
+      return "!";
   }
 
   FELL_UNREACHABLE();
@@ -30,6 +32,18 @@ StringView ToString(BinaryOperator op) {
       return "+";
     case BinaryOperator::kSubtract:
       return "-";
+    case BinaryOperator::kEqual:
+      return "==";
+    case BinaryOperator::kNotEqual:
+      return "!=";
+    case BinaryOperator::kLess:
+      return "<";
+    case BinaryOperator::kLessEqual:
+      return "<=";
+    case BinaryOperator::kGreater:
+      return ">";
+    case BinaryOperator::kGreaterEqual:
+      return ">=";
   }
 
   FELL_UNREACHABLE();
@@ -43,6 +57,8 @@ StringView ToString(IrOpcode opcode) {
       return "convert";
     case IrOpcode::kNegate:
       return "negate";
+    case IrOpcode::kLogicalNot:
+      return "logical_not";
     case IrOpcode::kMultiply:
       return "multiply";
     case IrOpcode::kDivide:
@@ -51,6 +67,18 @@ StringView ToString(IrOpcode opcode) {
       return "add";
     case IrOpcode::kSubtract:
       return "subtract";
+    case IrOpcode::kEqual:
+      return "equal";
+    case IrOpcode::kNotEqual:
+      return "not_equal";
+    case IrOpcode::kLess:
+      return "less";
+    case IrOpcode::kLessEqual:
+      return "less_equal";
+    case IrOpcode::kGreater:
+      return "greater";
+    case IrOpcode::kGreaterEqual:
+      return "greater_equal";
     case IrOpcode::kReturn:
       return "return";
   }
@@ -204,13 +232,15 @@ String DumpIr(const IrProgram& program) {
         break;
       }
 
-      case IrOpcode::kNegate: {
+      case IrOpcode::kNegate:
+      case IrOpcode::kLogicalNot: {
         const Type type{
             GetIrValue(program, instruction.unary.destination).type,
         };
 
-        output << "  %" << instruction.unary.destination.value << " = negate "
-               << ToString(type) << " %" << instruction.unary.operand.value
+        output << "  %" << instruction.unary.destination.value << " = "
+               << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
+               << instruction.unary.operand.value
                << '\n';
         break;
       }
@@ -222,6 +252,22 @@ String DumpIr(const IrProgram& program) {
         const Type type{
             GetIrValue(program, instruction.binary.destination).type,
         };
+
+        output << "  %" << instruction.binary.destination.value << " = "
+               << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
+               << instruction.binary.left.value << ", %"
+               << instruction.binary.right.value << '\n';
+        break;
+      }
+
+      case IrOpcode::kEqual:
+      case IrOpcode::kNotEqual:
+      case IrOpcode::kLess:
+      case IrOpcode::kLessEqual:
+      case IrOpcode::kGreater:
+      case IrOpcode::kGreaterEqual: {
+        const Type type{GetIrValue(program, instruction.binary.left).type};
+        FELL_ASSERT(GetIrValue(program, instruction.binary.right).type == type);
 
         output << "  %" << instruction.binary.destination.value << " = "
                << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
