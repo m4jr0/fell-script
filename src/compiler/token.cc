@@ -14,6 +14,8 @@ StringView ToString(TokenType type) {
       return "integer_literal";
     case TokenType::kFloatLiteral:
       return "float_literal";
+    case TokenType::kStringLiteral:
+      return "string_literal";
     case TokenType::kIdentifier:
       return "identifier";
     case TokenType::kLeftParen:

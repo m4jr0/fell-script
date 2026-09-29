@@ -3,6 +3,7 @@
 #include "compiler/source_location.h"
 #include "compiler/type.h"
 #include "core/memory.h"
+#include "core/string.h"
 #include "core/types.h"
 #include "core/vector.h"
 
@@ -35,6 +36,7 @@ enum class ExpressionKind {
   kBooleanLiteral,
   kIntegerLiteral,
   kFloatLiteral,
+  kStringLiteral,
   kUnary,
   kBinary,
 };
@@ -57,6 +59,10 @@ struct FloatLiteralExpression {
   Type explicit_type;
 };
 
+struct StringLiteralExpression {
+  StringView value;
+};
+
 struct UnaryExpression {
   UnaryOperator op;
   Expression* operand;
@@ -77,6 +83,7 @@ struct Expression {
     BooleanLiteralExpression boolean_literal;
     IntegerLiteralExpression integer_literal;
     FloatLiteralExpression float_literal;
+    StringLiteralExpression string_literal;
     UnaryExpression unary;
     BinaryExpression binary;
   };
@@ -115,6 +122,7 @@ class Ast {
                                              SourceSpan span);
   Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type,
                                            SourceSpan span);
+  Expression* CreateStringLiteralExpression(StringView value, SourceSpan span);
 
   Expression* CreateUnaryExpression(UnaryOperator op, Expression* operand,
                                     SourceSpan span);

@@ -375,6 +375,18 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
             instruction.load_immediate.value.data;
         break;
 
+      case Opcode::kLoadString: {
+        FELL_ASSERT(instruction.load_string.constant <
+                    module.string_constants.size());
+        auto string{MakeUnique<RuntimeString>(RuntimeString{
+            .value = module.string_constants[instruction.load_string.constant],
+        })};
+        RuntimeString* const value{string.get()};
+        strings_.push_back(std::move(string));
+        get_register(instruction.load_string.destination).string_value = value;
+        break;
+      }
+
         FELL_CONVERT_SIGNED(kConvertS8ToS16, s8, s16);
         FELL_CONVERT_SIGNED(kConvertS8ToS32, s8, s32);
         FELL_CONVERT_SIGNED(kConvertS8ToS64, s8, s64);
@@ -450,6 +462,23 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_BINARY(kAddF32, AddFloat, f32);
         FELL_BINARY(kAddF64, AddFloat, f64);
 
+      case Opcode::kAddString: {
+        RuntimeString* const left{
+            get_register(instruction.binary.left).string_value};
+        RuntimeString* const right{
+            get_register(instruction.binary.right).string_value};
+        FELL_ASSERT(left != nullptr && right != nullptr);
+
+        auto string{MakeUnique<RuntimeString>(RuntimeString{
+            .value = left->value + right->value,
+        })};
+
+        RuntimeString* const value{string.get()};
+        strings_.push_back(std::move(string));
+        get_register(instruction.binary.destination).string_value = value;
+        break;
+      }
+
         FELL_BINARY(kSubtractS8, SubtractSigned, s8);
         FELL_BINARY(kSubtractS16, SubtractSigned, s16);
         FELL_BINARY(kSubtractS32, SubtractSigned, s32);
@@ -478,6 +507,18 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_BINARY(kEqualF32, EqualFloat, f32);
         FELL_BINARY(kEqualF64, EqualFloat, f64);
 
+      case Opcode::kEqualString: {
+        RuntimeString* const left{
+            get_register(instruction.binary.left).string_value};
+        RuntimeString* const right{
+            get_register(instruction.binary.right).string_value};
+        FELL_ASSERT(left != nullptr && right != nullptr);
+
+        get_register(instruction.binary.destination).bool_value =
+            left->value == right->value;
+        break;
+      }
+
       case Opcode::kNotEqualBool:
         get_register(instruction.binary.destination) =
             NotEqualBool(get_register(instruction.binary.left),
@@ -494,6 +535,18 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_BINARY(kNotEqualU64, NotEqualUnsigned, u64);
         FELL_BINARY(kNotEqualF32, NotEqualFloat, f32);
         FELL_BINARY(kNotEqualF64, NotEqualFloat, f64);
+
+      case Opcode::kNotEqualString: {
+        RuntimeString* const left{
+            get_register(instruction.binary.left).string_value};
+        RuntimeString* const right{
+            get_register(instruction.binary.right).string_value};
+        FELL_ASSERT(left != nullptr && right != nullptr);
+
+        get_register(instruction.binary.destination).bool_value =
+            left->value != right->value;
+        break;
+      }
 
         FELL_BINARY(kLessS8, LessSigned, s8);
         FELL_BINARY(kLessS16, LessSigned, s16);

@@ -57,6 +57,7 @@ class Parser {
   Expression* ParseBooleanLiteral();
   Expression* ParseIntegerLiteral();
   Expression* ParseFloatLiteral();
+  Expression* ParseStringLiteral();
   Expression* ParseGrouping();
   Expression* ParseUnary();
   Expression* ParseBinary(Expression* left);

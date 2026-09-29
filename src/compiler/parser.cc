@@ -136,6 +136,9 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     // kFloatLiteral
     {.prefix = &Parser::ParseFloatLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
+    // kStringLiteral
+    {.prefix = &Parser::ParseStringLiteral, .infix = nullptr, .precedence = Precedence::kNone},
+
     // kIdentifier
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
@@ -353,6 +356,14 @@ Expression* Parser::ParseFloatLiteral() {
 
   return ast_.CreateFloatLiteralExpression(value, explicit_type,
                                            previous_.span);
+}
+
+Expression* Parser::ParseStringLiteral() {
+  FELL_ASSERT(previous_.type == TokenType::kStringLiteral);
+  FELL_ASSERT(previous_.lexeme.size() >= 2);
+
+  return ast_.CreateStringLiteralExpression(
+      previous_.lexeme.substr(1, previous_.lexeme.size() - 2), previous_.span);
 }
 
 Expression* Parser::ParseGrouping() {

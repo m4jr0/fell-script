@@ -30,6 +30,8 @@ class IrBuilder {
 
   void EmitFloatConstant(IrProgram& program, IrValueId destination, f64 value,
                          Type type);
+  void EmitStringConstant(IrProgram& program, IrValueId destination,
+                          StringView value);
 };
 
 }  // namespace fell

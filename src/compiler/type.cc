@@ -23,6 +23,7 @@ bool IsNumericType(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
       return false;
   }
 
@@ -40,6 +41,7 @@ bool IsSignedInteger(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
     case Type::kU8:
     case Type::kU16:
     case Type::kU32:
@@ -63,6 +65,7 @@ bool IsUnsignedInteger(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
     case Type::kS8:
     case Type::kS16:
     case Type::kS32:
@@ -84,6 +87,7 @@ bool IsFloatingPoint(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
     case Type::kS8:
     case Type::kS16:
     case Type::kS32:
@@ -145,6 +149,7 @@ bool CanImplicitlyConvert(Type from, Type to) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
       FELL_UNREACHABLE();
   }
 
@@ -196,6 +201,7 @@ bool CanRepresentInteger(Type type, u64 value) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
     case Type::kF32:
     case Type::kF64:
       return false;
@@ -218,6 +224,7 @@ bool CanRepresentNegativeInteger(Type type, u64 magnitude) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
     case Type::kU8:
     case Type::kU16:
     case Type::kU32:
@@ -258,6 +265,8 @@ StringView ToString(Type type) {
       return "f32";
     case Type::kF64:
       return "f64";
+    case Type::kString:
+      return "string";
   }
 
   FELL_UNREACHABLE();

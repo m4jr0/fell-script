@@ -43,6 +43,10 @@ String ToString(const Value& value) {
 
     case ValueType::kF64:
       return NumberToString(value.data.f64_value);
+
+    case ValueType::kString:
+      FELL_ASSERT(value.data.string_value != nullptr);
+      return value.data.string_value->value;
   }
 
   FELL_UNREACHABLE();

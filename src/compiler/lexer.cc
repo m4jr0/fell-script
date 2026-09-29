@@ -73,6 +73,9 @@ Token Lexer::NextToken() {
     case ';':
       Advance();
       return MakeToken(TokenType::kSemicolon, start);
+
+    case '"':
+      return TokenizeString(start);
   }
 
   if (IsIdentifierStart(character)) {
@@ -235,6 +238,25 @@ Token Lexer::TokenizeNumber(SourceLocation start) {
   }
 
   return MakeToken(type, start);
+}
+
+Token Lexer::TokenizeString(SourceLocation start) {
+  Advance();
+
+  while (position_ < source_.size() && Peek() != '"') {
+    if (Peek() == '\n') {
+      return MakeToken(TokenType::kInvalid, start);
+    }
+
+    Advance();
+  }
+
+  if (position_ == source_.size()) {
+    return MakeToken(TokenType::kInvalid, start);
+  }
+
+  Advance();
+  return MakeToken(TokenType::kStringLiteral, start);
 }
 
 Token Lexer::TokenizeIdentifier(SourceLocation start) {

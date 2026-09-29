@@ -212,7 +212,8 @@ int RunRepl(const CompileOptions& options = {}) {
       continue;
     }
 
-    const std::optional value{ExecuteModule(result.program)};
+    Vm vm{};
+    const std::optional value{vm.Execute(result.program)};
     if (value.has_value()) {
       std::cout << ToString(*value) << '\n';
     }

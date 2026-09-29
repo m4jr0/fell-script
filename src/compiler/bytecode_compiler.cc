@@ -35,6 +35,8 @@ ValueType ToValueType(Type type) {
       return ValueType::kF32;
     case Type::kF64:
       return ValueType::kF64;
+    case Type::kString:
+      return ValueType::kString;
 
     case Type::kInvalid:
     case Type::kError:
@@ -154,6 +156,7 @@ Opcode GetConvertOpcode(Type source, Type destination) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
     case Type::kS64:
     case Type::kU64:
     case Type::kF64:
@@ -189,6 +192,7 @@ Opcode GetMultiplyOpcode(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
       FELL_UNREACHABLE();
   }
 
@@ -221,6 +225,7 @@ Opcode GetDivideOpcode(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
       FELL_UNREACHABLE();
   }
 
@@ -249,6 +254,8 @@ Opcode GetAddOpcode(Type type) {
       return Opcode::kAddF32;
     case Type::kF64:
       return Opcode::kAddF64;
+    case Type::kString:
+      return Opcode::kAddString;
 
     case Type::kInvalid:
     case Type::kError:
@@ -285,6 +292,7 @@ Opcode GetSubtractOpcode(Type type) {
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
+    case Type::kString:
       FELL_UNREACHABLE();
   }
 
@@ -295,89 +303,161 @@ Opcode GetComparisonOpcode(IrOpcode opcode, Type type) {
   switch (opcode) {
     case IrOpcode::kEqual:
       switch (type) {
-        case Type::kBool: return Opcode::kEqualBool;
-        case Type::kS8: return Opcode::kEqualS8;
-        case Type::kS16: return Opcode::kEqualS16;
-        case Type::kS32: return Opcode::kEqualS32;
-        case Type::kS64: return Opcode::kEqualS64;
-        case Type::kU8: return Opcode::kEqualU8;
-        case Type::kU16: return Opcode::kEqualU16;
-        case Type::kU32: return Opcode::kEqualU32;
-        case Type::kU64: return Opcode::kEqualU64;
-        case Type::kF32: return Opcode::kEqualF32;
-        case Type::kF64: return Opcode::kEqualF64;
-        default: FELL_UNREACHABLE();
+        case Type::kBool:
+          return Opcode::kEqualBool;
+        case Type::kS8:
+          return Opcode::kEqualS8;
+        case Type::kS16:
+          return Opcode::kEqualS16;
+        case Type::kS32:
+          return Opcode::kEqualS32;
+        case Type::kS64:
+          return Opcode::kEqualS64;
+        case Type::kU8:
+          return Opcode::kEqualU8;
+        case Type::kU16:
+          return Opcode::kEqualU16;
+        case Type::kU32:
+          return Opcode::kEqualU32;
+        case Type::kU64:
+          return Opcode::kEqualU64;
+        case Type::kF32:
+          return Opcode::kEqualF32;
+        case Type::kF64:
+          return Opcode::kEqualF64;
+        case Type::kString:
+          return Opcode::kEqualString;
+        default:
+          FELL_UNREACHABLE();
       }
     case IrOpcode::kNotEqual:
       switch (type) {
-        case Type::kBool: return Opcode::kNotEqualBool;
-        case Type::kS8: return Opcode::kNotEqualS8;
-        case Type::kS16: return Opcode::kNotEqualS16;
-        case Type::kS32: return Opcode::kNotEqualS32;
-        case Type::kS64: return Opcode::kNotEqualS64;
-        case Type::kU8: return Opcode::kNotEqualU8;
-        case Type::kU16: return Opcode::kNotEqualU16;
-        case Type::kU32: return Opcode::kNotEqualU32;
-        case Type::kU64: return Opcode::kNotEqualU64;
-        case Type::kF32: return Opcode::kNotEqualF32;
-        case Type::kF64: return Opcode::kNotEqualF64;
-        default: FELL_UNREACHABLE();
+        case Type::kBool:
+          return Opcode::kNotEqualBool;
+        case Type::kS8:
+          return Opcode::kNotEqualS8;
+        case Type::kS16:
+          return Opcode::kNotEqualS16;
+        case Type::kS32:
+          return Opcode::kNotEqualS32;
+        case Type::kS64:
+          return Opcode::kNotEqualS64;
+        case Type::kU8:
+          return Opcode::kNotEqualU8;
+        case Type::kU16:
+          return Opcode::kNotEqualU16;
+        case Type::kU32:
+          return Opcode::kNotEqualU32;
+        case Type::kU64:
+          return Opcode::kNotEqualU64;
+        case Type::kF32:
+          return Opcode::kNotEqualF32;
+        case Type::kF64:
+          return Opcode::kNotEqualF64;
+        case Type::kString:
+          return Opcode::kNotEqualString;
+        default:
+          FELL_UNREACHABLE();
       }
     case IrOpcode::kLess:
       switch (type) {
-        case Type::kS8: return Opcode::kLessS8;
-        case Type::kS16: return Opcode::kLessS16;
-        case Type::kS32: return Opcode::kLessS32;
-        case Type::kS64: return Opcode::kLessS64;
-        case Type::kU8: return Opcode::kLessU8;
-        case Type::kU16: return Opcode::kLessU16;
-        case Type::kU32: return Opcode::kLessU32;
-        case Type::kU64: return Opcode::kLessU64;
-        case Type::kF32: return Opcode::kLessF32;
-        case Type::kF64: return Opcode::kLessF64;
-        default: FELL_UNREACHABLE();
+        case Type::kS8:
+          return Opcode::kLessS8;
+        case Type::kS16:
+          return Opcode::kLessS16;
+        case Type::kS32:
+          return Opcode::kLessS32;
+        case Type::kS64:
+          return Opcode::kLessS64;
+        case Type::kU8:
+          return Opcode::kLessU8;
+        case Type::kU16:
+          return Opcode::kLessU16;
+        case Type::kU32:
+          return Opcode::kLessU32;
+        case Type::kU64:
+          return Opcode::kLessU64;
+        case Type::kF32:
+          return Opcode::kLessF32;
+        case Type::kF64:
+          return Opcode::kLessF64;
+        default:
+          FELL_UNREACHABLE();
       }
     case IrOpcode::kLessEqual:
       switch (type) {
-        case Type::kS8: return Opcode::kLessEqualS8;
-        case Type::kS16: return Opcode::kLessEqualS16;
-        case Type::kS32: return Opcode::kLessEqualS32;
-        case Type::kS64: return Opcode::kLessEqualS64;
-        case Type::kU8: return Opcode::kLessEqualU8;
-        case Type::kU16: return Opcode::kLessEqualU16;
-        case Type::kU32: return Opcode::kLessEqualU32;
-        case Type::kU64: return Opcode::kLessEqualU64;
-        case Type::kF32: return Opcode::kLessEqualF32;
-        case Type::kF64: return Opcode::kLessEqualF64;
-        default: FELL_UNREACHABLE();
+        case Type::kS8:
+          return Opcode::kLessEqualS8;
+        case Type::kS16:
+          return Opcode::kLessEqualS16;
+        case Type::kS32:
+          return Opcode::kLessEqualS32;
+        case Type::kS64:
+          return Opcode::kLessEqualS64;
+        case Type::kU8:
+          return Opcode::kLessEqualU8;
+        case Type::kU16:
+          return Opcode::kLessEqualU16;
+        case Type::kU32:
+          return Opcode::kLessEqualU32;
+        case Type::kU64:
+          return Opcode::kLessEqualU64;
+        case Type::kF32:
+          return Opcode::kLessEqualF32;
+        case Type::kF64:
+          return Opcode::kLessEqualF64;
+        default:
+          FELL_UNREACHABLE();
       }
     case IrOpcode::kGreater:
       switch (type) {
-        case Type::kS8: return Opcode::kGreaterS8;
-        case Type::kS16: return Opcode::kGreaterS16;
-        case Type::kS32: return Opcode::kGreaterS32;
-        case Type::kS64: return Opcode::kGreaterS64;
-        case Type::kU8: return Opcode::kGreaterU8;
-        case Type::kU16: return Opcode::kGreaterU16;
-        case Type::kU32: return Opcode::kGreaterU32;
-        case Type::kU64: return Opcode::kGreaterU64;
-        case Type::kF32: return Opcode::kGreaterF32;
-        case Type::kF64: return Opcode::kGreaterF64;
-        default: FELL_UNREACHABLE();
+        case Type::kS8:
+          return Opcode::kGreaterS8;
+        case Type::kS16:
+          return Opcode::kGreaterS16;
+        case Type::kS32:
+          return Opcode::kGreaterS32;
+        case Type::kS64:
+          return Opcode::kGreaterS64;
+        case Type::kU8:
+          return Opcode::kGreaterU8;
+        case Type::kU16:
+          return Opcode::kGreaterU16;
+        case Type::kU32:
+          return Opcode::kGreaterU32;
+        case Type::kU64:
+          return Opcode::kGreaterU64;
+        case Type::kF32:
+          return Opcode::kGreaterF32;
+        case Type::kF64:
+          return Opcode::kGreaterF64;
+        default:
+          FELL_UNREACHABLE();
       }
     case IrOpcode::kGreaterEqual:
       switch (type) {
-        case Type::kS8: return Opcode::kGreaterEqualS8;
-        case Type::kS16: return Opcode::kGreaterEqualS16;
-        case Type::kS32: return Opcode::kGreaterEqualS32;
-        case Type::kS64: return Opcode::kGreaterEqualS64;
-        case Type::kU8: return Opcode::kGreaterEqualU8;
-        case Type::kU16: return Opcode::kGreaterEqualU16;
-        case Type::kU32: return Opcode::kGreaterEqualU32;
-        case Type::kU64: return Opcode::kGreaterEqualU64;
-        case Type::kF32: return Opcode::kGreaterEqualF32;
-        case Type::kF64: return Opcode::kGreaterEqualF64;
-        default: FELL_UNREACHABLE();
+        case Type::kS8:
+          return Opcode::kGreaterEqualS8;
+        case Type::kS16:
+          return Opcode::kGreaterEqualS16;
+        case Type::kS32:
+          return Opcode::kGreaterEqualS32;
+        case Type::kS64:
+          return Opcode::kGreaterEqualS64;
+        case Type::kU8:
+          return Opcode::kGreaterEqualU8;
+        case Type::kU16:
+          return Opcode::kGreaterEqualU16;
+        case Type::kU32:
+          return Opcode::kGreaterEqualU32;
+        case Type::kU64:
+          return Opcode::kGreaterEqualU64;
+        case Type::kF32:
+          return Opcode::kGreaterEqualF32;
+        case Type::kF64:
+          return Opcode::kGreaterEqualF64;
+        default:
+          FELL_UNREACHABLE();
       }
     default:
       FELL_UNREACHABLE();
@@ -418,6 +498,7 @@ Value MakeConstantValue(const IrProgram& ir, const IrConstant& constant) {
 
     case Type::kInvalid:
     case Type::kError:
+    case Type::kString:
       FELL_UNREACHABLE();
   }
 
@@ -480,21 +561,37 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
 
   BytecodeModule module{
       .instructions = {},
+      .string_constants = ir.string_constants,
       .register_count = static_cast<u16>(ir.values.size()),
   };
 
   for (const IrInstruction& instruction : ir.instructions) {
     switch (instruction.opcode) {
-      case IrOpcode::kConstant:
-        module.instructions.push_back({
-            .opcode = Opcode::kLoadImmediate,
-            .load_immediate =
-                {
-                    .destination = ToRegister(instruction.constant.destination),
-                    .value = MakeConstantValue(ir, instruction.constant),
-                },
-        });
+      case IrOpcode::kConstant: {
+        const Type type{GetIrValue(ir, instruction.constant.destination).type};
+        if (type == Type::kString) {
+          module.instructions.push_back({
+              .opcode = Opcode::kLoadString,
+              .load_string =
+                  {
+                      .destination =
+                          ToRegister(instruction.constant.destination),
+                      .constant = instruction.constant.string_value,
+                  },
+          });
+        } else {
+          module.instructions.push_back({
+              .opcode = Opcode::kLoadImmediate,
+              .load_immediate =
+                  {
+                      .destination =
+                          ToRegister(instruction.constant.destination),
+                      .value = MakeConstantValue(ir, instruction.constant),
+                  },
+          });
+        }
         break;
+      }
 
       case IrOpcode::kConvert: {
         const Type source_type{

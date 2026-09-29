@@ -122,6 +122,10 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
       return;
     }
 
+    case ExpressionKind::kStringLiteral:
+      result.model.Set(expression, {.type = Type::kString});
+      return;
+
     case ExpressionKind::kUnary: {
       const auto& unary{expression.unary};
       if (unary.op == UnaryOperator::kNegate &&
@@ -214,15 +218,30 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
         return;
       }
 
+      if (binary.op == BinaryOperator::kAdd && left.type == Type::kString &&
+          right.type == Type::kString) {
+        result.model.Set(
+            expression, {.type = Type::kString, .operand_type = Type::kString});
+        return;
+      }
+
+      if (is_equality && left.type == Type::kString &&
+          right.type == Type::kString) {
+        result.model.Set(expression,
+                         {.type = Type::kBool, .operand_type = Type::kString});
+        return;
+      }
+
       if (!IsNumericType(left.type) || !IsNumericType(right.type)) {
         result.model.Set(expression, {.type = Type::kError});
         result.diagnostics.push_back({
             .severity = DiagnosticSeverity::kError,
-            .message = is_arithmetic
-                           ? "arithmetic operators only apply to numeric types"
-                       : is_equality
-                           ? "equality operands must both be bool or numeric"
-                           : "ordering operators only apply to numeric types",
+            .message =
+                is_arithmetic
+                    ? "arithmetic operators only apply to numeric types"
+                : is_equality
+                    ? "equality operands must both be bool, string, or numeric"
+                    : "ordering operators only apply to numeric types",
             .span = expression.span,
         });
         return;

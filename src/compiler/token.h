@@ -12,6 +12,7 @@ enum class TokenType {
 
   kIntegerLiteral,
   kFloatLiteral,
+  kStringLiteral,
 
   kIdentifier,
 

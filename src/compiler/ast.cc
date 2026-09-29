@@ -78,6 +78,23 @@ Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type,
   return result;
 }
 
+Expression* Ast::CreateStringLiteralExpression(StringView value,
+                                               SourceSpan span) {
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{.value = static_cast<u32>(expressions_.size())};
+
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kStringLiteral,
+      .span = span,
+      .string_literal = {.value = value},
+  })};
+
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+  return result;
+}
+
 Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand,
                                        SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);

@@ -62,6 +62,12 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       return destination;
     }
 
+    case ExpressionKind::kStringLiteral: {
+      const IrValueId destination{AllocateValue(program, Type::kString)};
+      EmitStringConstant(program, destination, expression.string_literal.value);
+      return destination;
+    }
+
     case ExpressionKind::kUnary: {
       const auto& unary{expression.unary};
 
@@ -112,7 +118,8 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       const auto& expression_semantics{semantics.Get(expression)};
       const Type result_type{expression_semantics.type};
-      const Type operand_type{expression_semantics.operand_type == Type::kInvalid
+      const Type operand_type{expression_semantics.operand_type ==
+                                      Type::kInvalid
                                   ? result_type
                                   : expression_semantics.operand_type};
       FELL_ASSERT(result_type != Type::kError);
@@ -229,6 +236,7 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
       constant.u64_value = value;
       break;
     case Type::kBool:
+    case Type::kString:
     case Type::kF32:
     case Type::kF64:
     case Type::kInvalid:
@@ -274,6 +282,7 @@ void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
       constant.f64_value = value;
       break;
     case Type::kBool:
+    case Type::kString:
     case Type::kS8:
     case Type::kS16:
     case Type::kS32:
@@ -290,6 +299,18 @@ void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
   program.instructions.push_back({
       .opcode = IrOpcode::kConstant,
       .constant = constant,
+  });
+}
+
+void IrBuilder::EmitStringConstant(IrProgram& program, IrValueId destination,
+                                   StringView value) {
+  FELL_ASSERT(program.string_constants.size() < kMaxValue<u32>);
+  const StringConstantId id{static_cast<u32>(program.string_constants.size())};
+  program.string_constants.emplace_back(value);
+
+  program.instructions.push_back({
+      .opcode = IrOpcode::kConstant,
+      .constant = {.destination = destination, .string_value = id},
   });
 }
 

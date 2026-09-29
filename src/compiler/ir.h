@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compiler/type.h"
+#include "core/string.h"
 #include "core/types.h"
 #include "core/vector.h"
 
@@ -32,6 +33,8 @@ enum class IrOpcode {
   kReturn,
 };
 
+using StringConstantId = u32;
+
 struct IrConstant {
   IrValueId destination;
 
@@ -40,6 +43,7 @@ struct IrConstant {
     s64 s64_value;
     u64 u64_value;
     f64 f64_value;
+    StringConstantId string_value;
   };
 };
 
@@ -82,6 +86,7 @@ struct IrValue {
 struct IrProgram {
   Vector<IrInstruction> instructions;
   Vector<IrValue> values;
+  Vector<String> string_constants;
 };
 
 const IrValue& GetIrValue(const IrProgram& program, IrValueId id);

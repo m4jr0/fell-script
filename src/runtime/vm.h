@@ -3,6 +3,8 @@
 #include <optional>
 
 #include "bytecode/bytecode.h"
+#include "core/memory.h"
+#include "core/vector.h"
 
 namespace fell {
 
@@ -12,6 +14,7 @@ class Vm {
 
  private:
   ValueData registers_[kMaxRegisterCount]{};
+  Vector<UniquePtr<RuntimeString>> strings_;
 };
 
 }  // namespace fell

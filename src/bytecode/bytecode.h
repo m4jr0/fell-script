@@ -8,6 +8,7 @@ namespace fell {
 
 enum class Opcode : u8 {
   kLoadImmediate,
+  kLoadString,
 
   kConvertS8ToS16,
   kConvertS8ToS32,
@@ -80,6 +81,7 @@ enum class Opcode : u8 {
   kAddU64,
   kAddF32,
   kAddF64,
+  kAddString,
 
   kSubtractS8,
   kSubtractS16,
@@ -103,6 +105,7 @@ enum class Opcode : u8 {
   kEqualU64,
   kEqualF32,
   kEqualF64,
+  kEqualString,
 
   kNotEqualBool,
   kNotEqualS8,
@@ -115,6 +118,7 @@ enum class Opcode : u8 {
   kNotEqualU64,
   kNotEqualF32,
   kNotEqualF64,
+  kNotEqualString,
 
   kLessS8,
   kLessS16,
@@ -164,12 +168,18 @@ enum class Opcode : u8 {
 };
 
 using RegisterId = u16;
+using StringConstantId = u32;
 
 inline constexpr u32 kMaxRegisterCount{256};
 
 struct LoadImmediateInstruction {
   RegisterId destination;
   Value value;
+};
+
+struct LoadStringInstruction {
+  RegisterId destination;
+  StringConstantId constant;
 };
 
 struct ConvertInstruction {
@@ -198,6 +208,7 @@ struct Instruction {
 
   union {
     LoadImmediateInstruction load_immediate;
+    LoadStringInstruction load_string;
     ConvertInstruction convert;
     UnaryInstruction unary;
     BinaryInstruction binary;
@@ -207,6 +218,7 @@ struct Instruction {
 
 struct BytecodeModule {
   Vector<Instruction> instructions;
+  Vector<String> string_constants;
   u16 register_count{0};
 };
 

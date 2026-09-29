@@ -15,6 +15,7 @@ constexpr u8 kMagic[]{'F', 'E', 'L', 'L'};
 constexpr usize kHeaderSize{
     std::size(kMagic) + sizeof(u16) +  // Bytecode format version.
     sizeof(u16) +                      // Register count.
+    sizeof(u32) +                      // String count.
     sizeof(u32)                        // Instruction count.
 };
 
@@ -114,17 +115,24 @@ void WriteValue(Writer& writer, const Value& value) {
     case ValueType::kF64:
       writer.WriteU64(std::bit_cast<u64>(value.data.f64_value));
       break;
+
+    case ValueType::kString:
+      FELL_UNREACHABLE();
   }
 }
 
-bool IsValidValueType(u8 value) {
+bool IsValidImmediateValueType(u8 value) {
   return value <= static_cast<u8>(ValueType::kF64);
+}
+
+bool IsValidValueType(u8 value) {
+  return value <= static_cast<u8>(ValueType::kString);
 }
 
 bool ReadValue(Reader& reader, Value& value) {
   u8 type{};
 
-  if (!reader.ReadU8(type) || !IsValidValueType(type)) {
+  if (!reader.ReadU8(type) || !IsValidImmediateValueType(type)) {
     return false;
   }
 
@@ -167,6 +175,9 @@ bool ReadValue(Reader& reader, Value& value) {
       break;
     }
 
+    case ValueType::kString:
+      return false;
+
     case ValueType::kF32:
     case ValueType::kF64: {
       u64 data{};
@@ -207,6 +218,7 @@ bool IsValidRegister(RegisterId id, const BytecodeModule& module) {
 
 Vector<u8> SerializeBytecode(const BytecodeModule& module) {
   FELL_ASSERT(module.instructions.size() <= kMaxValue<u32>);
+  FELL_ASSERT(module.string_constants.size() <= kMaxValue<u32>);
 
   Writer writer{
       kHeaderSize + module.instructions.size() * kEstimatedInstructionSize,
@@ -218,7 +230,16 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
 
   writer.WriteU16(kBytecodeFormatVersion);
   writer.WriteU16(module.register_count);
+  writer.WriteU32(static_cast<u32>(module.string_constants.size()));
   writer.WriteU32(static_cast<u32>(module.instructions.size()));
+
+  for (const String& string : module.string_constants) {
+    FELL_ASSERT(string.size() <= kMaxValue<u32>);
+    writer.WriteU32(static_cast<u32>(string.size()));
+    for (const char character : string) {
+      writer.WriteU8(static_cast<u8>(character));
+    }
+  }
 
   for (const Instruction& instruction : module.instructions) {
     writer.WriteU8(static_cast<u8>(instruction.opcode));
@@ -226,6 +247,9 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
     if (instruction.opcode == Opcode::kLoadImmediate) {
       writer.WriteU16(instruction.load_immediate.destination);
       WriteValue(writer, instruction.load_immediate.value);
+    } else if (instruction.opcode == Opcode::kLoadString) {
+      writer.WriteU16(instruction.load_string.destination);
+      writer.WriteU32(instruction.load_string.constant);
     } else if (IsConvertOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.convert.destination);
       writer.WriteU16(instruction.convert.source);
@@ -267,6 +291,7 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
 
   BytecodeModule module{
       .instructions = {},
+      .string_constants = {},
       .register_count = 0,
   };
 
@@ -275,9 +300,33 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
     return {.module = {}, .error = "invalid Fell register count"};
   }
 
+  u32 string_count{};
+  if (!reader.ReadU32(string_count)) {
+    return {.module = {}, .error = "truncated Fell bytecode header"};
+  }
+
   u32 instruction_count{};
   if (!reader.ReadU32(instruction_count)) {
     return {.module = {}, .error = "truncated Fell bytecode header"};
+  }
+
+  module.string_constants.reserve(string_count);
+  for (u32 index{0}; index < string_count; ++index) {
+    u32 length{};
+    if (!reader.ReadU32(length) || length > reader.Remaining()) {
+      return {.module = {}, .error = "invalid Fell string constant"};
+    }
+
+    String string;
+    string.reserve(length);
+    for (u32 byte_index{0}; byte_index < length; ++byte_index) {
+      u8 byte{};
+      if (!reader.ReadU8(byte)) {
+        return {.module = {}, .error = "truncated Fell string constant"};
+      }
+      string.push_back(static_cast<char>(byte));
+    }
+    module.string_constants.push_back(std::move(string));
   }
 
   if (instruction_count > reader.Remaining()) {
@@ -297,7 +346,17 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
 
     const auto opcode{static_cast<Opcode>(raw_opcode)};
 
-    if (opcode == Opcode::kLoadImmediate) {
+    if (opcode == Opcode::kLoadString) {
+      LoadStringInstruction load{};
+      if (!reader.ReadU16(load.destination) || !reader.ReadU32(load.constant)) {
+        return {.module = {}, .error = "truncated string load instruction"};
+      }
+      if (!IsValidRegister(load.destination, module) ||
+          load.constant >= module.string_constants.size()) {
+        return {.module = {}, .error = "invalid string load instruction"};
+      }
+      module.instructions.push_back({.opcode = opcode, .load_string = load});
+    } else if (opcode == Opcode::kLoadImmediate) {
       LoadImmediateInstruction load{};
       if (!reader.ReadU16(load.destination) || !ReadValue(reader, load.value)) {
         return {.module = {}, .error = "truncated load instruction"};

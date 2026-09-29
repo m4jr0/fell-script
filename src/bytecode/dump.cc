@@ -13,6 +13,8 @@ StringView ToString(Opcode opcode) {
   switch (opcode) {
     case Opcode::kLoadImmediate:
       return "load_immediate";
+    case Opcode::kLoadString:
+      return "load_string";
     case Opcode::kConvertS8ToS16:
       return "convert_s8_to_s16";
     case Opcode::kConvertS8ToS32:
@@ -145,6 +147,8 @@ StringView ToString(Opcode opcode) {
       return "add_f32";
     case Opcode::kAddF64:
       return "add_f64";
+    case Opcode::kAddString:
+      return "add_string";
     case Opcode::kSubtractS8:
       return "subtract_s8";
     case Opcode::kSubtractS16:
@@ -187,6 +191,8 @@ StringView ToString(Opcode opcode) {
       return "equal_f32";
     case Opcode::kEqualF64:
       return "equal_f64";
+    case Opcode::kEqualString:
+      return "equal_string";
     case Opcode::kNotEqualBool:
       return "not_equal_bool";
     case Opcode::kNotEqualS8:
@@ -209,6 +215,8 @@ StringView ToString(Opcode opcode) {
       return "not_equal_f32";
     case Opcode::kNotEqualF64:
       return "not_equal_f64";
+    case Opcode::kNotEqualString:
+      return "not_equal_string";
     case Opcode::kLessS8:
       return "less_s8";
     case Opcode::kLessS16:
@@ -310,6 +318,11 @@ String DumpBytecode(const BytecodeModule& module) {
       case Opcode::kLoadImmediate:
         output << " r" << instruction.load_immediate.destination << ", "
                << ToString(instruction.load_immediate.value);
+        break;
+
+      case Opcode::kLoadString:
+        output << " r" << instruction.load_string.destination << ", #"
+               << instruction.load_string.constant;
         break;
 
       case Opcode::kConvertS8ToS16:
@@ -458,6 +471,9 @@ String DumpBytecode(const BytecodeModule& module) {
       case Opcode::kGreaterEqualU64:
       case Opcode::kGreaterEqualF32:
       case Opcode::kGreaterEqualF64:
+      case Opcode::kAddString:
+      case Opcode::kEqualString:
+      case Opcode::kNotEqualString:
         output << " r" << instruction.binary.destination << ", r"
                << instruction.binary.left << ", r" << instruction.binary.right;
         break;

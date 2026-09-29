@@ -23,6 +23,8 @@ enum class Type {
 
   kF32,
   kF64,
+
+  kString,
 };
 
 bool IsNumericType(Type type);

@@ -1,30 +1,6 @@
-// Boolean literals.
-true;                       // true
-false;                      // false
-
-// Logical not.
-!true;                      // false
-!false;                     // true
-!!true;                     // true
-
-// Boolean equality.
-true == true;               // true
-true == false;              // false
-true != false;              // true
-
-// Integer comparisons.
-1 == 1;                     // true
-1 != 2;                     // true
-1 < 2;                      // true
-2 <= 2;                     // true
-2 > 1;                      // true
-2 >= 2;                     // true
-
-// Numeric conversions.
-1u32 == 1s64;               // true
-1u32 < 2s64;                // true
-
-// Precedence.
-1 + 2 * 3 == 7;             // true
-1 + 2 < 4 == true;          // true
-!(1 + 2 > 4);               // true
+// Strings.
+"hello";                       // "hello"
+"";                            // ""
+"hello" + " world";            // "hello world"
+"hello" == "hello";            // true
+"hello" != "world";            // true

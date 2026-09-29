@@ -112,6 +112,11 @@ void DumpExpression(const Expression& expression, std::ostringstream& output,
       output << '\n';
       return;
 
+    case ExpressionKind::kStringLiteral:
+      output << indent << "StringLiteral \"" << expression.string_literal.value
+             << "\"\n";
+      return;
+
     case ExpressionKind::kUnary:
       output << indent << "UnaryExpression (" << ToString(expression.unary.op)
              << ")\n";
@@ -208,6 +213,13 @@ String DumpIr(const IrProgram& program) {
             output << instruction.constant.f64_value;
             break;
 
+          case Type::kString:
+            output
+                << "\""
+                << program.string_constants[instruction.constant.string_value]
+                << "\"";
+            break;
+
           case Type::kInvalid:
           case Type::kError:
             FELL_UNREACHABLE();
@@ -240,8 +252,7 @@ String DumpIr(const IrProgram& program) {
 
         output << "  %" << instruction.unary.destination.value << " = "
                << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
-               << instruction.unary.operand.value
-               << '\n';
+               << instruction.unary.operand.value << '\n';
         break;
       }
 

@@ -20,6 +20,12 @@ enum class ValueType : u8 {
 
   kF32,
   kF64,
+
+  kString,
+};
+
+struct RuntimeString {
+  String value;
 };
 
 union ValueData {
@@ -27,6 +33,7 @@ union ValueData {
   s64 s64_value;
   u64 u64_value;
   f64 f64_value;
+  RuntimeString* string_value;
 };
 
 struct Value {

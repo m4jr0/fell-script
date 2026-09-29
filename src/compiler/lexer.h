@@ -27,6 +27,7 @@ class Lexer {
   Token MakeToken(TokenType type, SourceLocation start) const;
 
   Token TokenizeNumber(SourceLocation start);
+  Token TokenizeString(SourceLocation start);
   Token TokenizeIdentifier(SourceLocation start);
 
   bool IsIdentifierStart(char character) const;
