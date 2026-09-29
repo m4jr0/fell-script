@@ -15,6 +15,8 @@ enum class TokenType {
   kStringLiteral,
 
   kIdentifier,
+  kLet,
+  kMut,
 
   kLeftParen,
   kRightParen,
@@ -26,12 +28,14 @@ enum class TokenType {
 
   kBang,
   kBangEqual,
+  kEqual,
   kEqualEqual,
   kLess,
   kLessEqual,
   kGreater,
   kGreaterEqual,
 
+  kColon,
   kSemicolon,
 
   kEndOfFile,

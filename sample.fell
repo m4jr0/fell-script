@@ -1,6 +1,9 @@
-// Strings.
-"hello";                       // "hello"
-"";                            // ""
-"hello" + " world";            // "hello world"
-"hello" == "hello";            // true
-"hello" != "world";            // true
+// Variables.
+let mut health = 100;
+let damage = 25;
+health = health - damage;
+health == 75;                // true
+
+let mut name: string = "Geralt";
+name = name + " of Rivia";
+name == "Geralt of Rivia";  // true

@@ -140,6 +140,12 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     {.prefix = &Parser::ParseStringLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kIdentifier
+    {.prefix = &Parser::ParseVariable, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kLet
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kMut
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kLeftParen
@@ -166,6 +172,9 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     // kBangEqual
     {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kEquality},
 
+    // kEqual
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
     // kEqualEqual
     {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kEquality},
 
@@ -180,6 +189,9 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
 
     // kGreaterEqual
     {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kComparison},
+
+    // kColon
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kSemicolon
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
@@ -244,7 +256,24 @@ void Parser::Synchronize() {
 }
 
 Expression* Parser::ParseExpression() {
-  return ParsePrecedence(Precedence::kNone);
+  Expression* expression{ParsePrecedence(Precedence::kNone)};
+  if (expression == nullptr || !Match(TokenType::kEqual)) {
+    return expression;
+  }
+
+  if (expression->kind != ExpressionKind::kVariable) {
+    ErrorAtPrevious("invalid assignment target");
+    return nullptr;
+  }
+
+  Expression* const value{ParseExpression()};
+  if (value == nullptr) {
+    return nullptr;
+  }
+
+  return ast_.CreateAssignmentExpression(
+      expression->variable.name, value,
+      MergeSpans(expression->span, value->span));
 }
 
 Expression* Parser::ParsePrecedence(Precedence precedence) {
@@ -366,6 +395,11 @@ Expression* Parser::ParseStringLiteral() {
       previous_.lexeme.substr(1, previous_.lexeme.size() - 2), previous_.span);
 }
 
+Expression* Parser::ParseVariable() {
+  FELL_ASSERT(previous_.type == TokenType::kIdentifier);
+  return ast_.CreateVariableExpression(previous_.lexeme, previous_.span);
+}
+
 Expression* Parser::ParseGrouping() {
   const SourceSpan opening_span{previous_.span};
   Expression* const expression{ParseExpression()};
@@ -411,6 +445,10 @@ Expression* Parser::ParseBinary(Expression* left) {
 }
 
 Statement* Parser::ParseStatement() {
+  if (Match(TokenType::kLet)) {
+    return ParseVariableDeclaration();
+  }
+
   Expression* const expression{ParseExpression()};
 
   if (expression == nullptr) {
@@ -424,6 +462,68 @@ Statement* Parser::ParseStatement() {
 
   return ast_.CreateExpressionStatement(
       expression, MergeSpans(expression->span, previous_.span));
+}
+
+Statement* Parser::ParseVariableDeclaration() {
+  const SourceSpan let_span{previous_.span};
+  const bool is_mutable{Match(TokenType::kMut)};
+
+  if (!Match(TokenType::kIdentifier)) {
+    ErrorAtCurrent("expected variable name after 'let'");
+    return nullptr;
+  }
+  const Token name{previous_};
+
+  Type explicit_type{Type::kInvalid};
+  if (Match(TokenType::kColon)) {
+    explicit_type = ParseType();
+    if (explicit_type == Type::kInvalid) {
+      return nullptr;
+    }
+  }
+
+  if (!Match(TokenType::kEqual)) {
+    ErrorAtCurrent("expected '=' after variable name");
+    return nullptr;
+  }
+
+  Expression* const initializer{ParseExpression()};
+  if (initializer == nullptr) {
+    return nullptr;
+  }
+
+  if (!Match(TokenType::kSemicolon)) {
+    ErrorAtCurrent("expected ';' after variable declaration");
+    return nullptr;
+  }
+
+  return ast_.CreateVariableDeclarationStatement(
+      name.lexeme, explicit_type, initializer, is_mutable,
+      MergeSpans(let_span, previous_.span));
+}
+
+Type Parser::ParseType() {
+  if (!Match(TokenType::kIdentifier)) {
+    ErrorAtCurrent("expected type name after ':'");
+    return Type::kInvalid;
+  }
+
+  const StringView name{previous_.lexeme};
+  if (name == "bool") return Type::kBool;
+  if (name == "s8") return Type::kS8;
+  if (name == "s16") return Type::kS16;
+  if (name == "s32") return Type::kS32;
+  if (name == "s64") return Type::kS64;
+  if (name == "u8") return Type::kU8;
+  if (name == "u16") return Type::kU16;
+  if (name == "u32") return Type::kU32;
+  if (name == "u64") return Type::kU64;
+  if (name == "f32") return Type::kF32;
+  if (name == "f64") return Type::kF64;
+  if (name == "string") return Type::kString;
+
+  ErrorAtPrevious("unknown type name");
+  return Type::kInvalid;
 }
 
 }  // namespace fell

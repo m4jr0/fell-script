@@ -22,11 +22,40 @@ void SemanticModel::Set(const Expression& expression,
   expressions_[index] = semantics;
 }
 
+const StatementSemantics& SemanticModel::Get(const Statement& statement) const {
+  const usize index{statement.id.value};
+  FELL_ASSERT(index < statements_.size());
+  FELL_ASSERT(statements_[index].type != Type::kInvalid);
+  return statements_[index];
+}
+
+void SemanticModel::Set(const Statement& statement,
+                        StatementSemantics semantics) {
+  const usize index{statement.id.value};
+  if (statements_.size() <= index) {
+    statements_.resize(index + 1);
+  }
+  statements_[index] = semantics;
+}
+
+const SemanticAnalyzer::Symbol* SemanticAnalyzer::FindSymbol(
+    StringView name) const {
+  for (auto iterator{symbols_.rbegin()}; iterator != symbols_.rend();
+       ++iterator) {
+    if (iterator->name == name) {
+      return &*iterator;
+    }
+  }
+  return nullptr;
+}
+
 SemanticResult SemanticAnalyzer::Analyze(const CompilationUnit& unit) {
+  symbols_.clear();
   SemanticResult result{};
   for (const Statement* statement : unit.statements) {
     AnalyzeStatement(*statement, result);
   }
+  result.model.global_count_ = static_cast<u32>(symbols_.size());
   return result;
 }
 
@@ -75,12 +104,101 @@ Type SemanticAnalyzer::GetFloatLiteralType(
   return Type::kF64;
 }
 
+bool SemanticAnalyzer::TryApplyIntegerLiteralContext(
+    const Expression& expression, Type expected_type, SemanticResult& result) {
+  if (!IsSignedInteger(expected_type) && !IsUnsignedInteger(expected_type)) {
+    return false;
+  }
+
+  if (expression.kind == ExpressionKind::kIntegerLiteral) {
+    const auto& literal{expression.integer_literal};
+    if (literal.explicit_type != Type::kInvalid ||
+        !CanRepresentInteger(expected_type, literal.value)) {
+      return false;
+    }
+
+    result.model.Set(expression, {.type = expected_type});
+    return true;
+  }
+
+  if (expression.kind != ExpressionKind::kUnary ||
+      expression.unary.op != UnaryOperator::kNegate ||
+      expression.unary.operand->kind != ExpressionKind::kIntegerLiteral ||
+      !IsSignedInteger(expected_type)) {
+    return false;
+  }
+
+  const Expression& operand{*expression.unary.operand};
+  const auto& literal{operand.integer_literal};
+  if (literal.explicit_type != Type::kInvalid ||
+      !CanRepresentNegativeInteger(expected_type, literal.value)) {
+    return false;
+  }
+
+  // The positive magnitude may not fit in the signed type even though the
+  // corresponding negative value does, such as -128s8.
+  result.model.Set(operand, {.type = expected_type});
+  result.model.Set(expression, {.type = expected_type});
+  return true;
+}
+
 void SemanticAnalyzer::AnalyzeStatement(const Statement& statement,
                                         SemanticResult& result) {
   switch (statement.kind) {
     case StatementKind::kExpression:
       AnalyzeExpression(*statement.expression.expression, result);
       return;
+
+    case StatementKind::kVariableDeclaration: {
+      const auto& declaration{statement.variable_declaration};
+      if (FindSymbol(declaration.name) != nullptr) {
+        result.model.Set(statement, {.type = Type::kError});
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message = "variable is already declared",
+            .span = statement.span,
+        });
+        return;
+      }
+
+      if (declaration.explicit_type == Type::kInvalid ||
+          !TryApplyIntegerLiteralContext(*declaration.initializer,
+                                         declaration.explicit_type, result)) {
+        AnalyzeExpression(*declaration.initializer, result);
+      }
+      const Type initializer_type{
+          result.model.Get(*declaration.initializer).type};
+      if (initializer_type == Type::kError) {
+        result.model.Set(statement, {.type = Type::kError});
+        return;
+      }
+
+      Type type{initializer_type};
+      if (declaration.explicit_type != Type::kInvalid) {
+        type = declaration.explicit_type;
+        if (initializer_type != type &&
+            (!IsNumericType(initializer_type) || !IsNumericType(type) ||
+             !CanImplicitlyConvert(initializer_type, type))) {
+          result.model.Set(statement, {.type = Type::kError});
+          result.diagnostics.push_back({
+              .severity = DiagnosticSeverity::kError,
+              .message =
+                  "initializer is not implicitly convertible to declared type",
+              .span = statement.span,
+          });
+          return;
+        }
+      }
+
+      FELL_ASSERT(symbols_.size() < kMaxValue<u32>);
+      const GlobalId id{static_cast<GlobalId>(symbols_.size())};
+      symbols_.push_back({.name = declaration.name,
+                          .type = type,
+                          .id = id,
+                          .is_mutable = declaration.is_mutable});
+      result.model.Set(statement, {.type = type, .global_id = id});
+      return;
+    }
   }
   FELL_UNREACHABLE();
 }
@@ -125,6 +243,68 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
     case ExpressionKind::kStringLiteral:
       result.model.Set(expression, {.type = Type::kString});
       return;
+
+    case ExpressionKind::kVariable: {
+      const Symbol* const symbol{FindSymbol(expression.variable.name)};
+      if (symbol == nullptr) {
+        result.model.Set(expression, {.type = Type::kError});
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message = "undefined variable",
+            .span = expression.span,
+        });
+        return;
+      }
+      result.model.Set(expression,
+                       {.type = symbol->type, .global_id = symbol->id});
+      return;
+    }
+
+    case ExpressionKind::kAssignment: {
+      const Symbol* const symbol{FindSymbol(expression.assignment.name)};
+      if (symbol == nullptr) {
+        result.model.Set(expression, {.type = Type::kError});
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message = "undefined variable",
+            .span = expression.span,
+        });
+        return;
+      }
+      if (!symbol->is_mutable) {
+        result.model.Set(expression, {.type = Type::kError});
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message = "cannot assign to immutable variable",
+            .span = expression.span,
+        });
+        return;
+      }
+
+      AnalyzeExpression(*expression.assignment.value, result);
+      const Type value_type{
+          result.model.Get(*expression.assignment.value).type};
+      if (value_type == Type::kError) {
+        result.model.Set(expression, {.type = Type::kError});
+        return;
+      }
+      if (value_type != symbol->type &&
+          (!IsNumericType(value_type) || !IsNumericType(symbol->type) ||
+           !CanImplicitlyConvert(value_type, symbol->type))) {
+        result.model.Set(expression, {.type = Type::kError});
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message =
+                "assigned value is not implicitly convertible to variable type",
+            .span = expression.span,
+        });
+        return;
+      }
+      result.model.Set(expression, {.type = symbol->type,
+                                    .operand_type = symbol->type,
+                                    .global_id = symbol->id});
+      return;
+    }
 
     case ExpressionKind::kUnary: {
       const auto& unary{expression.unary};

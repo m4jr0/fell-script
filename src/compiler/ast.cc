@@ -95,6 +95,39 @@ Expression* Ast::CreateStringLiteralExpression(StringView value,
   return result;
 }
 
+Expression* Ast::CreateVariableExpression(StringView name, SourceSpan span) {
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{.value = static_cast<u32>(expressions_.size())};
+
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kVariable,
+      .span = span,
+      .variable = {.name = name},
+  })};
+
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+  return result;
+}
+
+Expression* Ast::CreateAssignmentExpression(StringView name, Expression* value,
+                                            SourceSpan span) {
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{.value = static_cast<u32>(expressions_.size())};
+
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kAssignment,
+      .span = span,
+      .assignment = {.name = name, .value = value},
+  })};
+
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+  return result;
+}
+
 Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand,
                                        SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
@@ -165,6 +198,32 @@ Statement* Ast::CreateExpressionStatement(Expression* expression,
   auto* result{statement.get()};
   statements_.push_back(std::move(statement));
 
+  return result;
+}
+
+Statement* Ast::CreateVariableDeclarationStatement(StringView name,
+                                                   Type explicit_type,
+                                                   Expression* initializer,
+                                                   bool is_mutable,
+                                                   SourceSpan span) {
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kVariableDeclaration,
+      .span = span,
+      .variable_declaration =
+          {
+              .name = name,
+              .explicit_type = explicit_type,
+              .initializer = initializer,
+              .is_mutable = is_mutable,
+          },
+  })};
+
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
   return result;
 }
 

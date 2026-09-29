@@ -15,6 +15,7 @@ class Vm {
  private:
   ValueData registers_[kMaxRegisterCount]{};
   Vector<UniquePtr<RuntimeString>> strings_;
+  Vector<ValueData> globals_;
 };
 
 }  // namespace fell

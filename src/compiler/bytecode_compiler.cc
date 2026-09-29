@@ -563,6 +563,7 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
       .instructions = {},
       .string_constants = ir.string_constants,
       .register_count = static_cast<u16>(ir.values.size()),
+      .global_count = ir.global_count,
   };
 
   for (const IrInstruction& instruction : ir.instructions) {
@@ -592,6 +593,22 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
         }
         break;
       }
+
+      case IrOpcode::kLoadGlobal:
+        module.instructions.push_back({
+            .opcode = Opcode::kLoadGlobal,
+            .global = {.value = ToRegister(instruction.global.value),
+                       .global = instruction.global.global},
+        });
+        break;
+
+      case IrOpcode::kStoreGlobal:
+        module.instructions.push_back({
+            .opcode = Opcode::kStoreGlobal,
+            .global = {.value = ToRegister(instruction.global.value),
+                       .global = instruction.global.global},
+        });
+        break;
 
       case IrOpcode::kConvert: {
         const Type source_type{

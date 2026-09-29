@@ -57,8 +57,8 @@ Token Lexer::NextToken() {
 
     case '=':
       Advance();
-      return MakeToken(
-          Match('=') ? TokenType::kEqualEqual : TokenType::kInvalid, start);
+      return MakeToken(Match('=') ? TokenType::kEqualEqual : TokenType::kEqual,
+                       start);
 
     case '<':
       Advance();
@@ -69,6 +69,10 @@ Token Lexer::NextToken() {
       Advance();
       return MakeToken(
           Match('=') ? TokenType::kGreaterEqual : TokenType::kGreater, start);
+
+    case ':':
+      Advance();
+      return MakeToken(TokenType::kColon, start);
 
     case ';':
       Advance();
@@ -247,7 +251,6 @@ Token Lexer::TokenizeString(SourceLocation start) {
     if (Peek() == '\n') {
       return MakeToken(TokenType::kInvalid, start);
     }
-
     Advance();
   }
 
@@ -285,6 +288,18 @@ TokenType Lexer::GetIdentifierType(StringView lexeme) const {
     case 'f':
       if (lexeme == "false") {
         return TokenType::kFalse;
+      }
+      break;
+
+    case 'l':
+      if (lexeme == "let") {
+        return TokenType::kLet;
+      }
+      break;
+
+    case 'm':
+      if (lexeme == "mut") {
+        return TokenType::kMut;
       }
       break;
 

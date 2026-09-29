@@ -55,6 +55,10 @@ StringView ToString(IrOpcode opcode) {
       return "constant";
     case IrOpcode::kConvert:
       return "convert";
+    case IrOpcode::kLoadGlobal:
+      return "load_global";
+    case IrOpcode::kStoreGlobal:
+      return "store_global";
     case IrOpcode::kNegate:
       return "negate";
     case IrOpcode::kLogicalNot:
@@ -117,6 +121,18 @@ void DumpExpression(const Expression& expression, std::ostringstream& output,
              << "\"\n";
       return;
 
+    case ExpressionKind::kVariable:
+      output << indent << "VariableExpression " << expression.variable.name
+             << '\n';
+      return;
+
+    case ExpressionKind::kAssignment:
+      output << indent << "AssignmentExpression " << expression.assignment.name
+             << '\n';
+      DumpExpression(*expression.assignment.value, output,
+                     String{indent} + "  ");
+      return;
+
     case ExpressionKind::kUnary:
       output << indent << "UnaryExpression (" << ToString(expression.unary.op)
              << ")\n";
@@ -162,6 +178,17 @@ String DumpAst(const CompilationUnit& unit) {
         output << "  ExpressionStatement\n";
         DumpExpression(*statement->expression.expression, output, "    ");
         break;
+      case StatementKind::kVariableDeclaration: {
+        const auto& declaration{statement->variable_declaration};
+        output << "  VariableDeclaration "
+               << (declaration.is_mutable ? "mut " : "") << declaration.name;
+        if (declaration.explicit_type != Type::kInvalid) {
+          output << ": " << ToString(declaration.explicit_type);
+        }
+        output << '\n';
+        DumpExpression(*declaration.initializer, output, "    ");
+        break;
+      }
     }
   }
 
@@ -228,6 +255,16 @@ String DumpIr(const IrProgram& program) {
         output << '\n';
         break;
       }
+
+      case IrOpcode::kLoadGlobal:
+        output << "  %" << instruction.global.value.value << " = load_global #"
+               << instruction.global.global << '\n';
+        break;
+
+      case IrOpcode::kStoreGlobal:
+        output << "  store_global #" << instruction.global.global << ", %"
+               << instruction.global.value.value << '\n';
+        break;
 
       case IrOpcode::kConvert: {
         const Type source{

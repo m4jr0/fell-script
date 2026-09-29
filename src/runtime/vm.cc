@@ -328,6 +328,7 @@ ValueData NotEqualBool(ValueData left, ValueData right) {
 
 std::optional<Value> Vm::Execute(const BytecodeModule& module) {
   FELL_ASSERT(module.register_count <= kMaxRegisterCount);
+  globals_.assign(module.global_count, ValueData{});
 
   auto get_register = [&](RegisterId id) -> ValueData& {
     FELL_ASSERT(id < module.register_count);
@@ -370,6 +371,18 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
 
   for (const Instruction& instruction : module.instructions) {
     switch (instruction.opcode) {
+      case Opcode::kLoadGlobal:
+        FELL_ASSERT(instruction.global.global < globals_.size());
+        get_register(instruction.global.value) =
+            globals_[instruction.global.global];
+        break;
+
+      case Opcode::kStoreGlobal:
+        FELL_ASSERT(instruction.global.global < globals_.size());
+        globals_[instruction.global.global] =
+            get_register(instruction.global.value);
+        break;
+
       case Opcode::kLoadImmediate:
         get_register(instruction.load_immediate.destination) =
             instruction.load_immediate.value.data;
@@ -468,11 +481,9 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         RuntimeString* const right{
             get_register(instruction.binary.right).string_value};
         FELL_ASSERT(left != nullptr && right != nullptr);
-
         auto string{MakeUnique<RuntimeString>(RuntimeString{
             .value = left->value + right->value,
         })};
-
         RuntimeString* const value{string.get()};
         strings_.push_back(std::move(string));
         get_register(instruction.binary.destination).string_value = value;
@@ -513,7 +524,6 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         RuntimeString* const right{
             get_register(instruction.binary.right).string_value};
         FELL_ASSERT(left != nullptr && right != nullptr);
-
         get_register(instruction.binary.destination).bool_value =
             left->value == right->value;
         break;
@@ -542,7 +552,6 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         RuntimeString* const right{
             get_register(instruction.binary.right).string_value};
         FELL_ASSERT(left != nullptr && right != nullptr);
-
         get_register(instruction.binary.destination).bool_value =
             left->value != right->value;
         break;

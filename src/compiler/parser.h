@@ -58,11 +58,14 @@ class Parser {
   Expression* ParseIntegerLiteral();
   Expression* ParseFloatLiteral();
   Expression* ParseStringLiteral();
+  Expression* ParseVariable();
   Expression* ParseGrouping();
   Expression* ParseUnary();
   Expression* ParseBinary(Expression* left);
 
   Statement* ParseStatement();
+  Statement* ParseVariableDeclaration();
+  Type ParseType();
 
   Token current_;
   Token previous_;

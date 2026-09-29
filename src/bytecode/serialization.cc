@@ -15,6 +15,7 @@ constexpr u8 kMagic[]{'F', 'E', 'L', 'L'};
 constexpr usize kHeaderSize{
     std::size(kMagic) + sizeof(u16) +  // Bytecode format version.
     sizeof(u16) +                      // Register count.
+    sizeof(u32) +                      // Global count.
     sizeof(u32) +                      // String count.
     sizeof(u32)                        // Instruction count.
 };
@@ -230,6 +231,7 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
 
   writer.WriteU16(kBytecodeFormatVersion);
   writer.WriteU16(module.register_count);
+  writer.WriteU32(module.global_count);
   writer.WriteU32(static_cast<u32>(module.string_constants.size()));
   writer.WriteU32(static_cast<u32>(module.instructions.size()));
 
@@ -250,6 +252,10 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
     } else if (instruction.opcode == Opcode::kLoadString) {
       writer.WriteU16(instruction.load_string.destination);
       writer.WriteU32(instruction.load_string.constant);
+    } else if (instruction.opcode == Opcode::kLoadGlobal ||
+               instruction.opcode == Opcode::kStoreGlobal) {
+      writer.WriteU16(instruction.global.value);
+      writer.WriteU32(instruction.global.global);
     } else if (IsConvertOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.convert.destination);
       writer.WriteU16(instruction.convert.source);
@@ -293,11 +299,16 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
       .instructions = {},
       .string_constants = {},
       .register_count = 0,
+      .global_count = 0,
   };
 
   if (!reader.ReadU16(module.register_count) ||
       module.register_count > kMaxRegisterCount) {
     return {.module = {}, .error = "invalid Fell register count"};
+  }
+
+  if (!reader.ReadU32(module.global_count)) {
+    return {.module = {}, .error = "truncated Fell bytecode header"};
   }
 
   u32 string_count{};
@@ -346,7 +357,17 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
 
     const auto opcode{static_cast<Opcode>(raw_opcode)};
 
-    if (opcode == Opcode::kLoadString) {
+    if (opcode == Opcode::kLoadGlobal || opcode == Opcode::kStoreGlobal) {
+      GlobalInstruction global{};
+      if (!reader.ReadU16(global.value) || !reader.ReadU32(global.global)) {
+        return {.module = {}, .error = "truncated global instruction"};
+      }
+      if (!IsValidRegister(global.value, module) ||
+          global.global >= module.global_count) {
+        return {.module = {}, .error = "invalid global instruction"};
+      }
+      module.instructions.push_back({.opcode = opcode, .global = global});
+    } else     if (opcode == Opcode::kLoadString) {
       LoadStringInstruction load{};
       if (!reader.ReadU16(load.destination) || !reader.ReadU32(load.constant)) {
         return {.module = {}, .error = "truncated string load instruction"};

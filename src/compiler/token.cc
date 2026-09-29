@@ -18,6 +18,10 @@ StringView ToString(TokenType type) {
       return "string_literal";
     case TokenType::kIdentifier:
       return "identifier";
+    case TokenType::kLet:
+      return "let";
+    case TokenType::kMut:
+      return "mut";
     case TokenType::kLeftParen:
       return "left_paren";
     case TokenType::kRightParen:
@@ -34,6 +38,8 @@ StringView ToString(TokenType type) {
       return "bang";
     case TokenType::kBangEqual:
       return "bang_equal";
+    case TokenType::kEqual:
+      return "equal";
     case TokenType::kEqualEqual:
       return "equal_equal";
     case TokenType::kLess:
@@ -44,6 +50,8 @@ StringView ToString(TokenType type) {
       return "greater";
     case TokenType::kGreaterEqual:
       return "greater_equal";
+    case TokenType::kColon:
+      return "colon";
     case TokenType::kSemicolon:
       return "semicolon";
     case TokenType::kEndOfFile:

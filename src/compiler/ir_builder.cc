@@ -8,6 +8,7 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
                            const SemanticModel& semantics,
                            bool return_last_expression) {
   IrProgram program{};
+  program.global_count = semantics.global_count();
   IrValueId last_value{};
   bool has_value{false};
 
@@ -18,6 +19,22 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
                                      semantics, program);
         has_value = true;
         break;
+
+      case StatementKind::kVariableDeclaration: {
+        const auto& declaration{statement->variable_declaration};
+        IrValueId value{
+            BuildExpression(*declaration.initializer, semantics, program)};
+
+        const auto& statement_semantics{semantics.Get(*statement)};
+        value = ConvertIfNeeded(value, statement_semantics.type, program);
+        program.instructions.push_back({
+            .opcode = IrOpcode::kStoreGlobal,
+            .global = {.value = value, .global = statement_semantics.global_id},
+        });
+
+        has_value = false;
+        break;
+      }
     }
   }
 
@@ -66,6 +83,30 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       const IrValueId destination{AllocateValue(program, Type::kString)};
       EmitStringConstant(program, destination, expression.string_literal.value);
       return destination;
+    }
+
+    case ExpressionKind::kVariable: {
+      const auto& expression_semantics{semantics.Get(expression)};
+      const IrValueId destination{
+          AllocateValue(program, expression_semantics.type)};
+      program.instructions.push_back({
+          .opcode = IrOpcode::kLoadGlobal,
+          .global = {.value = destination,
+                     .global = expression_semantics.global_id},
+      });
+      return destination;
+    }
+
+    case ExpressionKind::kAssignment: {
+      const auto& expression_semantics{semantics.Get(expression)};
+      IrValueId value{
+          BuildExpression(*expression.assignment.value, semantics, program)};
+      value = ConvertIfNeeded(value, expression_semantics.type, program);
+      program.instructions.push_back({
+          .opcode = IrOpcode::kStoreGlobal,
+          .global = {.value = value, .global = expression_semantics.global_id},
+      });
+      return value;
     }
 
     case ExpressionKind::kUnary: {
@@ -307,7 +348,6 @@ void IrBuilder::EmitStringConstant(IrProgram& program, IrValueId destination,
   FELL_ASSERT(program.string_constants.size() < kMaxValue<u32>);
   const StringConstantId id{static_cast<u32>(program.string_constants.size())};
   program.string_constants.emplace_back(value);
-
   program.instructions.push_back({
       .opcode = IrOpcode::kConstant,
       .constant = {.destination = destination, .string_value = id},

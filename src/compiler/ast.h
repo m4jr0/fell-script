@@ -37,6 +37,8 @@ enum class ExpressionKind {
   kIntegerLiteral,
   kFloatLiteral,
   kStringLiteral,
+  kVariable,
+  kAssignment,
   kUnary,
   kBinary,
 };
@@ -63,6 +65,15 @@ struct StringLiteralExpression {
   StringView value;
 };
 
+struct VariableExpression {
+  StringView name;
+};
+
+struct AssignmentExpression {
+  StringView name;
+  Expression* value;
+};
+
 struct UnaryExpression {
   UnaryOperator op;
   Expression* operand;
@@ -84,6 +95,8 @@ struct Expression {
     IntegerLiteralExpression integer_literal;
     FloatLiteralExpression float_literal;
     StringLiteralExpression string_literal;
+    VariableExpression variable;
+    AssignmentExpression assignment;
     UnaryExpression unary;
     BinaryExpression binary;
   };
@@ -95,10 +108,18 @@ struct StatementId {
 
 enum class StatementKind {
   kExpression,
+  kVariableDeclaration,
 };
 
 struct ExpressionStatement {
   Expression* expression;
+};
+
+struct VariableDeclarationStatement {
+  StringView name;
+  Type explicit_type;
+  Expression* initializer;
+  bool is_mutable;
 };
 
 struct Statement {
@@ -108,6 +129,7 @@ struct Statement {
 
   union {
     ExpressionStatement expression;
+    VariableDeclarationStatement variable_declaration;
   };
 };
 
@@ -123,6 +145,9 @@ class Ast {
   Expression* CreateFloatLiteralExpression(f64 value, Type explicit_type,
                                            SourceSpan span);
   Expression* CreateStringLiteralExpression(StringView value, SourceSpan span);
+  Expression* CreateVariableExpression(StringView name, SourceSpan span);
+  Expression* CreateAssignmentExpression(StringView name, Expression* value,
+                                         SourceSpan span);
 
   Expression* CreateUnaryExpression(UnaryOperator op, Expression* operand,
                                     SourceSpan span);
@@ -131,6 +156,11 @@ class Ast {
                                      Expression* right, SourceSpan span);
 
   Statement* CreateExpressionStatement(Expression* expression, SourceSpan span);
+  Statement* CreateVariableDeclarationStatement(StringView name,
+                                                Type explicit_type,
+                                                Expression* initializer,
+                                                bool is_mutable,
+                                                SourceSpan span);
 
  private:
   // TODO(m4jr0): Allocate AST nodes from an arena.
