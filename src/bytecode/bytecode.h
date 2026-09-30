@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/types.h"
+#include "core/type.h"
 #include "core/vector.h"
 #include "runtime/value.h"
 
@@ -16,6 +16,8 @@ enum class Opcode : u8 {
   kMove,
   kJump,
   kJumpIfFalse,
+  kCall,
+  kCallNative,
 
   kConvertS8ToS16,
   kConvertS8ToS32,
@@ -178,6 +180,7 @@ using RegisterId = u16;
 using StringConstantId = u32;
 using GlobalId = u32;
 using LocalId = u32;
+using FunctionId = u32;
 
 inline constexpr u32 kMaxRegisterCount{256};
 
@@ -201,17 +204,12 @@ struct LocalInstruction {
   LocalId local;
 };
 
-struct MoveInstruction {
-  RegisterId destination;
-  RegisterId source;
-};
-struct JumpInstruction {
-  u32 target;
-};
-struct JumpIfFalseInstruction {
-  RegisterId condition;
-  u32 target;
-};
+struct MoveInstruction { RegisterId destination; RegisterId source; };
+struct JumpInstruction { u32 target; };
+struct JumpIfFalseInstruction { RegisterId condition; u32 target; };
+struct CallInstruction { RegisterId destination; FunctionId function; u32 argument_offset; u32 argument_count; };
+using NativeFunctionId = u32;
+struct NativeCallInstruction { RegisterId argument; ValueType type; NativeFunctionId function; };
 
 struct ConvertInstruction {
   RegisterId destination;
@@ -245,6 +243,8 @@ struct Instruction {
     MoveInstruction move;
     JumpInstruction jump;
     JumpIfFalseInstruction jump_if_false;
+    CallInstruction call;
+    NativeCallInstruction call_native;
     ConvertInstruction convert;
     UnaryInstruction unary;
     BinaryInstruction binary;
@@ -252,9 +252,18 @@ struct Instruction {
   };
 };
 
+struct BytecodeFunction {
+  u32 entry;
+  Vector<LocalId> parameter_local_slots;
+  ValueType return_type;
+};
+
 struct BytecodeModule {
   Vector<Instruction> instructions;
   Vector<String> string_constants;
+  Vector<RegisterId> call_arguments;
+  Vector<BytecodeFunction> functions;
+  u32 main_instruction_count{0};
   u16 register_count{0};
   u32 global_count{0};
   u32 local_count{0};

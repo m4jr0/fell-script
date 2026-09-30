@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "core/assert.h"
-#include "core/core.h"
+#include "core/type.h"
 
 namespace fell {
 namespace {
@@ -17,6 +17,9 @@ constexpr usize kHeaderSize{
     sizeof(u16) +                      // Register count.
     sizeof(u32) +                      // Global count.
     sizeof(u32) +                      // Local count.
+    sizeof(u32) +                      // Main instruction count.
+    sizeof(u32) +                      // Call argument count.
+    sizeof(u32) +                      // Function count.
     sizeof(u32) +                      // String count.
     sizeof(u32)                        // Instruction count.
 };
@@ -234,8 +237,19 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
   writer.WriteU16(module.register_count);
   writer.WriteU32(module.global_count);
   writer.WriteU32(module.local_count);
+  writer.WriteU32(module.main_instruction_count);
+  writer.WriteU32(static_cast<u32>(module.call_arguments.size()));
+  writer.WriteU32(static_cast<u32>(module.functions.size()));
   writer.WriteU32(static_cast<u32>(module.string_constants.size()));
   writer.WriteU32(static_cast<u32>(module.instructions.size()));
+
+  for (RegisterId argument : module.call_arguments) writer.WriteU16(argument);
+  for (const BytecodeFunction& function : module.functions) {
+    writer.WriteU32(function.entry);
+    writer.WriteU8(static_cast<u8>(function.return_type));
+    writer.WriteU32(static_cast<u32>(function.parameter_local_slots.size()));
+    for (LocalId slot : function.parameter_local_slots) writer.WriteU32(slot);
+  }
 
   for (const String& string : module.string_constants) {
     FELL_ASSERT(string.size() <= kMaxValue<u32>);
@@ -270,6 +284,15 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
     } else if (instruction.opcode == Opcode::kJumpIfFalse) {
       writer.WriteU16(instruction.jump_if_false.condition);
       writer.WriteU32(instruction.jump_if_false.target);
+    } else if (instruction.opcode == Opcode::kCall) {
+      writer.WriteU16(instruction.call.destination);
+      writer.WriteU32(instruction.call.function);
+      writer.WriteU32(instruction.call.argument_offset);
+      writer.WriteU32(instruction.call.argument_count);
+    } else if (instruction.opcode == Opcode::kCallNative) {
+      writer.WriteU16(instruction.call_native.argument);
+      writer.WriteU8(static_cast<u8>(instruction.call_native.type));
+      writer.WriteU32(instruction.call_native.function);
     } else if (IsConvertOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.convert.destination);
       writer.WriteU16(instruction.convert.source);
@@ -312,6 +335,9 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
   BytecodeModule module{
       .instructions = {},
       .string_constants = {},
+      .call_arguments = {},
+      .functions = {},
+      .main_instruction_count = 0,
       .register_count = 0,
       .global_count = 0,
       .local_count = 0,
@@ -323,18 +349,50 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
   }
 
   if (!reader.ReadU32(module.global_count) ||
-      !reader.ReadU32(module.local_count)) {
+      !reader.ReadU32(module.local_count) ||
+      !reader.ReadU32(module.main_instruction_count)) {
     return {.module = {}, .error = "truncated Fell bytecode header"};
   }
 
+  u32 call_argument_count{};
+  u32 function_count{};
   u32 string_count{};
-  if (!reader.ReadU32(string_count)) {
+  if (!reader.ReadU32(call_argument_count) || !reader.ReadU32(function_count) ||
+      !reader.ReadU32(string_count)) {
     return {.module = {}, .error = "truncated Fell bytecode header"};
   }
 
   u32 instruction_count{};
   if (!reader.ReadU32(instruction_count)) {
     return {.module = {}, .error = "truncated Fell bytecode header"};
+  }
+  if (module.main_instruction_count > instruction_count)
+    return {.module = {}, .error = "invalid main instruction count"};
+  for (const BytecodeFunction& function : module.functions)
+    if (function.entry >= instruction_count) return {.module = {}, .error = "invalid function entry"};
+
+  module.call_arguments.reserve(call_argument_count);
+  for (u32 index{0}; index < call_argument_count; ++index) {
+    u16 argument{};
+    if (!reader.ReadU16(argument) || !IsValidRegister(argument, module))
+      return {.module = {}, .error = "invalid call argument register"};
+    module.call_arguments.push_back(argument);
+  }
+  module.functions.reserve(function_count);
+  for (u32 index{0}; index < function_count; ++index) {
+    u32 entry{}; u8 raw_return_type{}; u32 parameter_count{};
+    if (!reader.ReadU32(entry) || !reader.ReadU8(raw_return_type) ||
+        !IsValidValueType(raw_return_type) || !reader.ReadU32(parameter_count))
+      return {.module = {}, .error = "invalid function metadata"};
+    Vector<LocalId> slots; slots.reserve(parameter_count);
+    for (u32 parameter{0}; parameter < parameter_count; ++parameter) {
+      u32 slot{};
+      if (!reader.ReadU32(slot) || slot >= module.local_count)
+        return {.module = {}, .error = "invalid function parameter slot"};
+      slots.push_back(slot);
+    }
+    module.functions.push_back({.entry = entry, .parameter_local_slots = std::move(slots),
+                                .return_type = static_cast<ValueType>(raw_return_type)});
   }
 
   module.string_constants.reserve(string_count);
@@ -393,7 +451,7 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
         return {.module = {}, .error = "invalid local instruction"};
       }
       module.instructions.push_back({.opcode = opcode, .local = local});
-    } else if (opcode == Opcode::kLoadString) {
+    } else     if (opcode == Opcode::kLoadString) {
       LoadStringInstruction load{};
       if (!reader.ReadU16(load.destination) || !reader.ReadU32(load.constant)) {
         return {.module = {}, .error = "truncated string load instruction"};
@@ -420,8 +478,7 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
     } else if (opcode == Opcode::kMove) {
       MoveInstruction move{};
       if (!reader.ReadU16(move.destination) || !reader.ReadU16(move.source) ||
-          !IsValidRegister(move.destination, module) ||
-          !IsValidRegister(move.source, module))
+          !IsValidRegister(move.destination, module) || !IsValidRegister(move.source, module))
         return {.module = {}, .error = "invalid move instruction"};
       module.instructions.push_back({.opcode = opcode, .move = move});
     } else if (opcode == Opcode::kJump) {
@@ -432,10 +489,26 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
     } else if (opcode == Opcode::kJumpIfFalse) {
       JumpIfFalseInstruction jump{};
       if (!reader.ReadU16(jump.condition) || !reader.ReadU32(jump.target) ||
-          !IsValidRegister(jump.condition, module) ||
-          jump.target > instruction_count)
+          !IsValidRegister(jump.condition, module) || jump.target > instruction_count)
         return {.module = {}, .error = "invalid conditional jump instruction"};
       module.instructions.push_back({.opcode = opcode, .jump_if_false = jump});
+    } else if (opcode == Opcode::kCall) {
+      CallInstruction call{};
+      if (!reader.ReadU16(call.destination) || !reader.ReadU32(call.function) ||
+          !reader.ReadU32(call.argument_offset) || !reader.ReadU32(call.argument_count) ||
+          !IsValidRegister(call.destination, module) || call.function >= module.functions.size() ||
+          call.argument_offset + call.argument_count > module.call_arguments.size())
+        return {.module = {}, .error = "invalid call instruction"};
+      module.instructions.push_back({.opcode = opcode, .call = call});
+    } else if (opcode == Opcode::kCallNative) {
+      NativeCallInstruction call_native{}; u8 raw_type{};
+      if (!reader.ReadU16(call_native.argument) || !reader.ReadU8(raw_type) ||
+          !IsValidRegister(call_native.argument, module) || !IsValidValueType(raw_type))
+        return {.module = {}, .error = "invalid print instruction"};
+      call_native.type = static_cast<ValueType>(raw_type);
+      if (!reader.ReadU32(call_native.function) || call_native.function != 0)
+        return {.module = {}, .error = "invalid native function"};
+      module.instructions.push_back({.opcode = opcode, .call_native = call_native});
     } else if (IsConvertOpcode(opcode)) {
       ConvertInstruction convert{};
       if (!reader.ReadU16(convert.destination) ||

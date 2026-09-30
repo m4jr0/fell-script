@@ -34,6 +34,10 @@ StringView ToString(TokenType type) {
       return "continue";
     case TokenType::kFor:
       return "for";
+    case TokenType::kFn:
+      return "fn";
+    case TokenType::kReturn:
+      return "return";
     case TokenType::kSwitch:
       return "switch";
     case TokenType::kCase:
@@ -44,6 +48,8 @@ StringView ToString(TokenType type) {
       return "left_paren";
     case TokenType::kRightParen:
       return "right_paren";
+    case TokenType::kComma:
+      return "comma";
     case TokenType::kLeftBrace:
       return "left_brace";
     case TokenType::kRightBrace:

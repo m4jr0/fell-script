@@ -1,58 +1,126 @@
 let mut health = 100;
 let damage = 25;
+
+print("health:");
+print(health);
+
+print("damage:");
+print(damage);
+
 health = health - damage;
-health == 75;
+
+print("health after damage:");
+print(health);
+
+print("health == 75:");
+print(health == 75);
 
 let mut name: string = "Geralt";
+
+print("name:");
+print(name);
+
 name = name + " of Rivia";
-name == "Geralt of Rivia";
+
+print("name after concatenation:");
+print(name);
+
+print("name == Geralt of Rivia:");
+print(name == "Geralt of Rivia");
 
 let mut counter = 0;
-while counter < 10 {
+
+print("counter before while:");
+print(counter);
+
+while counter < 3 {
   counter = counter + 1;
 
-  if counter == 2 {
-    continue;
-  }
-
-  if counter == 5 {
-    break;
-  }
-
-  health = health - 1;
+  print("counter in while:");
+  print(counter);
 }
 
-let mut total = 0;
-for (let mut i = 0; i < 10; i = i + 1) {
-  if i == 3 {
-    continue;
-  }
-
-  if i == 7 {
-    break;
-  }
-
-  total = total + i;
-}
-
-if counter == 5 {
+if counter == 3 {
   counter = counter + 10;
 } else {
   counter = 0;
 }
 
+print("counter after if:");
+print(counter);
+
 let is_large = counter > 10 && counter < 100;
+
+print("is_large:");
+print(is_large);
+
 let fallback = false || is_large;
+
+print("fallback:");
+print(fallback);
+
 let selected = fallback ? counter : 0;
+
+print("selected:");
+print(selected);
 
 switch selected {
   case 0 {
     counter = 1;
   }
-  case 15 {
+  case 13 {
     counter = counter + 100;
   }
   default {
     counter = 2;
   }
 }
+
+print("counter after switch:");
+print(counter);
+
+fn add(a: s32, b: s32): s32 {
+  print("add a:");
+  print(a);
+
+  print("add b:");
+  print(b);
+
+  let result = a + b;
+
+  print("add result:");
+  print(result);
+
+  return result;
+}
+
+fn factorial(n: s32): s32 {
+  print("factorial n:");
+  print(n);
+
+  if n <= 1 {
+    print("factorial base case:");
+    print(1);
+    return 1;
+  }
+
+  let result = n * factorial(n - 1);
+
+  print("factorial result:");
+  print(result);
+
+  return result;
+}
+
+let sum = add(20, 22);
+
+print("sum:");
+print(sum);
+
+let factorial_result = factorial(5);
+
+print("factorial_result:");
+print(factorial_result);
+
+print("message:");
+print("Hello from Fell");

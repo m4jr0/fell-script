@@ -34,6 +34,10 @@ Token Lexer::NextToken() {
       Advance();
       return MakeToken(TokenType::kRightParen, start);
 
+    case ',':
+      Advance();
+      return MakeToken(TokenType::kComma, start);
+
     case '{':
       Advance();
       return MakeToken(TokenType::kLeftBrace, start);
@@ -60,13 +64,11 @@ Token Lexer::NextToken() {
 
     case '&':
       Advance();
-      return MakeToken(Match('&') ? TokenType::kAmpAmp : TokenType::kInvalid,
-                       start);
+      return MakeToken(Match('&') ? TokenType::kAmpAmp : TokenType::kInvalid, start);
 
     case '|':
       Advance();
-      return MakeToken(Match('|') ? TokenType::kPipePipe : TokenType::kInvalid,
-                       start);
+      return MakeToken(Match('|') ? TokenType::kPipePipe : TokenType::kInvalid, start);
 
     case '!':
       Advance();
@@ -327,6 +329,7 @@ TokenType Lexer::GetIdentifierType(StringView lexeme) const {
     case 'f':
       if (lexeme == "false") return TokenType::kFalse;
       if (lexeme == "for") return TokenType::kFor;
+      if (lexeme == "fn") return TokenType::kFn;
       break;
 
     case 'i':
@@ -343,6 +346,10 @@ TokenType Lexer::GetIdentifierType(StringView lexeme) const {
       if (lexeme == "mut") {
         return TokenType::kMut;
       }
+      break;
+
+    case 'r':
+      if (lexeme == "return") return TokenType::kReturn;
       break;
 
     case 's':

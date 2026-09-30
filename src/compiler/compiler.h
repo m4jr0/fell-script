@@ -4,7 +4,7 @@
 #include "compiler/ast.h"
 #include "compiler/diagnostic.h"
 #include "core/string.h"
-#include "core/types.h"
+#include "core/type.h"
 #include "core/vector.h"
 
 namespace fell {

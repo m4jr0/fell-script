@@ -16,15 +16,29 @@ struct VariableBinding {
   u32 slot{0};
 };
 
+using FunctionId = u32;
+inline constexpr FunctionId kInvalidFunctionId{kMaxValue<u32>};
+
+struct FunctionSemantics {
+  StringView name;
+  Vector<Type> parameter_types;
+  Vector<u32> parameter_local_slots;
+  Type return_type{Type::kInvalid};
+  const Statement* declaration{nullptr};
+};
+
 struct ExpressionSemantics {
   Type type{Type::kInvalid};
   Type operand_type{Type::kInvalid};
   VariableBinding binding{};
+  FunctionId function_id{kInvalidFunctionId};
+  bool is_native{false};
 };
 
 struct StatementSemantics {
   Type type{Type::kInvalid};
   VariableBinding binding{};
+  FunctionId function_id{kInvalidFunctionId};
 };
 
 class SemanticModel {
@@ -34,6 +48,7 @@ class SemanticModel {
   [[nodiscard]] const StatementSemantics& Get(const Statement& statement) const;
   [[nodiscard]] u32 global_count() const { return global_count_; }
   [[nodiscard]] u32 local_count() const { return local_count_; }
+  [[nodiscard]] const Vector<FunctionSemantics>& functions() const { return functions_; }
 
  private:
   friend class SemanticAnalyzer;
@@ -45,6 +60,7 @@ class SemanticModel {
   Vector<StatementSemantics> statements_;
   u32 global_count_{0};
   u32 local_count_{0};
+  Vector<FunctionSemantics> functions_;
 };
 
 struct SemanticResult {
@@ -74,6 +90,7 @@ class SemanticAnalyzer {
                                             SemanticResult& result);
 
   const Symbol* FindSymbol(StringView name) const;
+  const FunctionSemantics* FindFunction(StringView name, FunctionId* id = nullptr) const;
   const Symbol* FindSymbolInCurrentScope(StringView name) const;
   void BeginScope();
   void EndScope();
@@ -85,6 +102,9 @@ class SemanticAnalyzer {
   u32 loop_depth_{0};
   u32 next_global_id_{0};
   u32 next_local_id_{0};
+  Type current_return_type_{Type::kInvalid};
+  bool inside_function_{false};
+  Vector<FunctionSemantics> functions_;
 };
 
 }  // namespace fell

@@ -2,7 +2,7 @@
 
 #include "compiler/source_location.h"
 #include "core/string.h"
-#include "core/types.h"
+#include "core/type.h"
 
 namespace fell {
 
@@ -23,12 +23,15 @@ enum class TokenType {
   kBreak,
   kContinue,
   kFor,
+  kFn,
+  kReturn,
   kSwitch,
   kCase,
   kDefault,
 
   kLeftParen,
   kRightParen,
+  kComma,
   kLeftBrace,
   kRightBrace,
 

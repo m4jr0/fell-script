@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/string.h"
-#include "core/types.h"
+#include "core/type.h"
 
 namespace fell {
 

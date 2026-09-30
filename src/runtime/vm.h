@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <optional>
 
 #include "bytecode/bytecode.h"
@@ -13,10 +14,16 @@ class Vm {
   std::optional<Value> Execute(const BytecodeModule& program);
 
  private:
-  ValueData registers_[kMaxRegisterCount]{};
+  struct Frame {
+    std::array<ValueData, kMaxRegisterCount> registers{};
+    Vector<ValueData> locals;
+    s64 return_ip{-1};
+    RegisterId return_destination{0};
+  };
+
   Vector<UniquePtr<RuntimeString>> strings_;
   Vector<ValueData> globals_;
-  Vector<ValueData> locals_;
+  Vector<Frame> frames_;
 };
 
 }  // namespace fell

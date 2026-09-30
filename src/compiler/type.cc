@@ -1,8 +1,8 @@
 #include "compiler/type.h"
 
 #include "core/assert.h"
-#include "core/core.h"
-#include "core/types.h"
+#include "core/type.h"
+#include "core/type.h"
 
 namespace fell {
 

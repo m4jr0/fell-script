@@ -2,7 +2,7 @@
 
 #include "compiler/type.h"
 #include "core/string.h"
-#include "core/types.h"
+#include "core/type.h"
 #include "core/vector.h"
 
 namespace fell {
@@ -22,6 +22,8 @@ enum class IrOpcode {
   kLabel,
   kJump,
   kJumpIfFalse,
+  kCall,
+  kCallNative,
 
   kNegate,
   kLogicalNot,
@@ -45,6 +47,7 @@ using StringConstantId = u32;
 using IrGlobalId = u32;
 using IrLocalId = u32;
 using IrLabelId = u32;
+using IrFunctionId = u32;
 
 struct IrConstant {
   IrValueId destination;
@@ -78,15 +81,19 @@ struct IrMove {
   IrValueId source;
 };
 
-struct IrLabel {
-  IrLabelId label;
+struct IrLabel { IrLabelId label; };
+struct IrJump { IrLabelId target; };
+struct IrJumpIfFalse { IrValueId condition; IrLabelId target; };
+struct IrCall {
+  IrValueId destination;
+  IrFunctionId function;
+  u32 argument_offset;
+  u32 argument_count;
+  bool has_destination;
 };
-struct IrJump {
-  IrLabelId target;
-};
-struct IrJumpIfFalse {
-  IrValueId condition;
-  IrLabelId target;
+struct IrCallNative {
+  IrValueId argument;
+  Type argument_type;
 };
 
 struct IrUnary {
@@ -116,6 +123,8 @@ struct IrInstruction {
     IrLabel label;
     IrJump jump;
     IrJumpIfFalse jump_if_false;
+    IrCall call;
+    IrCallNative call_native;
     IrUnary unary;
     IrBinary binary;
     IrReturn return_;
@@ -126,10 +135,20 @@ struct IrValue {
   Type type;
 };
 
+struct IrFunction {
+  IrFunctionId id;
+  IrLabelId entry;
+  Vector<IrLocalId> parameter_local_slots;
+  Type return_type;
+};
+
 struct IrProgram {
   Vector<IrInstruction> instructions;
   Vector<IrValue> values;
   Vector<String> string_constants;
+  Vector<IrValueId> call_arguments;
+  Vector<IrFunction> functions;
+  u32 main_instruction_count{0};
   u32 global_count{0};
   u32 local_count{0};
 };

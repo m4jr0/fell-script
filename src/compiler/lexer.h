@@ -2,7 +2,7 @@
 
 #include "compiler/source_location.h"
 #include "compiler/token.h"
-#include "core/core.h"
+#include "core/type.h"
 #include "core/string.h"
 
 namespace fell {

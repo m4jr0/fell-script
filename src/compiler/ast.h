@@ -4,17 +4,21 @@
 #include "compiler/type.h"
 #include "core/memory.h"
 #include "core/string.h"
-#include "core/types.h"
+#include "core/type.h"
 #include "core/vector.h"
 
 namespace fell {
 
 enum class UnaryOperator {
+  kInvalid,
+
   kNegate,
   kLogicalNot,
 };
 
 enum class BinaryOperator {
+  kInvalid,
+
   kLogicalAnd,
   kLogicalOr,
   kMultiply,
@@ -35,12 +39,15 @@ struct ExpressionId {
 };
 
 enum class ExpressionKind {
+  kInvalid,
+
   kBooleanLiteral,
   kIntegerLiteral,
   kFloatLiteral,
   kStringLiteral,
   kVariable,
   kAssignment,
+  kCall,
   kConditional,
   kBlock,
   kUnary,
@@ -58,13 +65,13 @@ struct BooleanLiteralExpression {
 // No negatives.
 // They are handled with the unary minus operator.
 struct IntegerLiteralExpression {
-  u64 value;
-  Type explicit_type;
+  u64 value{0};
+  Type explicit_type{Type::kInvalid};
 };
 
 struct FloatLiteralExpression {
-  f64 value;
-  Type explicit_type;
+  f64 value{0.0};
+  Type explicit_type{Type::kInvalid};
 };
 
 struct StringLiteralExpression {
@@ -77,7 +84,16 @@ struct VariableExpression {
 
 struct AssignmentExpression {
   StringView name;
-  Expression* value;
+  Expression* value{nullptr};
+};
+
+struct CallData {
+  StringView callee;
+  Vector<Expression*> arguments;
+};
+
+struct CallExpression {
+  CallData* data;
 };
 
 struct ConditionalExpression {
@@ -114,6 +130,7 @@ struct Expression {
     StringLiteralExpression string_literal;
     VariableExpression variable;
     AssignmentExpression assignment;
+    CallExpression call;
     ConditionalExpression conditional;
     BlockExpression block;
     UnaryExpression unary;
@@ -128,6 +145,8 @@ struct StatementId {
 enum class StatementKind {
   kExpression,
   kVariableDeclaration,
+  kFunctionDeclaration,
+  kReturn,
   kIf,
   kWhile,
   kFor,
@@ -147,6 +166,25 @@ struct VariableDeclarationStatement {
   Type explicit_type;
   Expression* initializer;
   bool is_mutable;
+};
+
+struct FunctionParameter {
+  StringView name;
+  Type type;
+};
+
+struct FunctionData {
+  StringView name;
+  Vector<FunctionParameter> parameters;
+  Type return_type;
+  Expression* body;
+};
+
+struct FunctionDeclarationStatement {
+  FunctionData* data;
+};
+struct ReturnStatement {
+  Expression* value;
 };
 
 struct IfStatement {
@@ -190,6 +228,8 @@ struct Statement {
   union {
     ExpressionStatement expression;
     VariableDeclarationStatement variable_declaration;
+    FunctionDeclarationStatement function_declaration;
+    ReturnStatement return_;
     IfStatement if_;
     WhileStatement while_;
     ForStatement for_;
@@ -214,6 +254,9 @@ class Ast {
   Expression* CreateVariableExpression(StringView name, SourceSpan span);
   Expression* CreateAssignmentExpression(StringView name, Expression* value,
                                          SourceSpan span);
+  Expression* CreateCallExpression(StringView callee,
+                                   Vector<Expression*> arguments,
+                                   SourceSpan span);
   Expression* CreateConditionalExpression(Expression* condition,
                                           Expression* then_expression,
                                           Expression* else_expression,
@@ -235,6 +278,10 @@ class Ast {
                                                 Expression* initializer,
                                                 bool is_mutable,
                                                 SourceSpan span);
+  Statement* CreateFunctionDeclarationStatement(
+      StringView name, Vector<FunctionParameter> parameters, Type return_type,
+      Expression* body, SourceSpan span);
+  Statement* CreateReturnStatement(Expression* value, SourceSpan span);
   Statement* CreateIfStatement(Expression* condition, Expression* then_block,
                                Expression* else_block, SourceSpan span);
   Statement* CreateWhileStatement(Expression* condition, Expression* body,
@@ -254,6 +301,8 @@ class Ast {
   // TODO(m4jr0): Allocate AST nodes from an arena.
   Vector<UniquePtr<Statement>> statements_;
   Vector<UniquePtr<CompilationUnit>> compilation_units_;
+  Vector<UniquePtr<CallData>> calls_;
+  Vector<UniquePtr<FunctionData>> functions_;
   Vector<UniquePtr<SwitchData>> switches_;
 };
 

@@ -4,7 +4,7 @@
 #include <utility>
 
 #include "core/assert.h"
-#include "core/core.h"
+#include "core/type.h"
 
 namespace fell {
 namespace {
@@ -170,6 +170,12 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     // kFor
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
+    // kFn
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kReturn
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
     // kSwitch
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
@@ -180,9 +186,12 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kLeftParen
-    {.prefix = &Parser::ParseGrouping, .infix = nullptr, .precedence = Precedence::kNone},
+    {.prefix = &Parser::ParseGrouping, .infix = &Parser::ParseCall, .precedence = Precedence::kCall},
 
     // kRightParen
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kComma
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kLeftBrace
@@ -447,6 +456,30 @@ Expression* Parser::ParseVariable() {
   return ast_.CreateVariableExpression(previous_.lexeme, previous_.span);
 }
 
+Expression* Parser::ParseCall(Expression* callee) {
+  if (callee->kind != ExpressionKind::kVariable) {
+    ErrorAtPrevious("call target must be a function name");
+    return nullptr;
+  }
+
+  Vector<Expression*> arguments;
+  if (!Check(TokenType::kRightParen)) {
+    do {
+      Expression* const argument{ParseExpression()};
+      if (argument == nullptr) return nullptr;
+      arguments.push_back(argument);
+    } while (Match(TokenType::kComma));
+  }
+
+  if (!Match(TokenType::kRightParen)) {
+    ErrorAtCurrent("expected ')' after arguments");
+    return nullptr;
+  }
+
+  return ast_.CreateCallExpression(callee->variable.name, std::move(arguments),
+                                   MergeSpans(callee->span, previous_.span));
+}
+
 Expression* Parser::ParseGrouping() {
   const SourceSpan opening_span{previous_.span};
   Expression* const expression{ParseExpression()};
@@ -477,7 +510,8 @@ Expression* Parser::ParseBlock() {
       continue;
     }
     if (Check(TokenType::kIf) || Check(TokenType::kWhile) ||
-        Check(TokenType::kBreak) || Check(TokenType::kContinue) ||
+        Check(TokenType::kFor) || Check(TokenType::kBreak) ||
+        Check(TokenType::kContinue) || Check(TokenType::kReturn) ||
         Check(TokenType::kSwitch)) {
       Statement* const statement{ParseStatement()};
       if (statement == nullptr) return nullptr;
@@ -568,6 +602,12 @@ Statement* Parser::ParseStatement() {
   if (Match(TokenType::kLet)) {
     return ParseVariableDeclaration();
   }
+  if (Match(TokenType::kFn)) {
+    return ParseFunctionDeclaration();
+  }
+  if (Match(TokenType::kReturn)) {
+    return ParseReturnStatement();
+  }
   if (Match(TokenType::kIf)) {
     return ParseIfStatement();
   }
@@ -605,6 +645,69 @@ Statement* Parser::ParseStatement() {
 
   return ast_.CreateExpressionStatement(
       expression, MergeSpans(expression->span, previous_.span));
+}
+
+Statement* Parser::ParseFunctionDeclaration() {
+  const SourceSpan fn_span{previous_.span};
+  if (!Check(TokenType::kIdentifier)) {
+    ErrorAtCurrent("expected function name");
+    return nullptr;
+  }
+  Advance();
+  const StringView name{previous_.lexeme};
+  if (!Match(TokenType::kLeftParen)) {
+    ErrorAtCurrent("expected '(' after function name");
+    return nullptr;
+  }
+  Vector<FunctionParameter> parameters;
+  if (!Check(TokenType::kRightParen)) {
+    do {
+      if (!Check(TokenType::kIdentifier)) {
+        ErrorAtCurrent("expected parameter name");
+        return nullptr;
+      }
+      Advance();
+      const StringView parameter_name{previous_.lexeme};
+      if (!Match(TokenType::kColon)) {
+        ErrorAtCurrent("expected ':' after parameter name");
+        return nullptr;
+      }
+      const Type parameter_type{ParseType()};
+      if (parameter_type == Type::kInvalid) return nullptr;
+      parameters.push_back({.name = parameter_name, .type = parameter_type});
+    } while (Match(TokenType::kComma));
+  }
+  if (!Match(TokenType::kRightParen)) {
+    ErrorAtCurrent("expected ')' after parameters");
+    return nullptr;
+  }
+  if (!Match(TokenType::kColon)) {
+    ErrorAtCurrent("expected ':' before function return type");
+    return nullptr;
+  }
+  const Type return_type{ParseType()};
+  if (return_type == Type::kInvalid) return nullptr;
+  if (!Match(TokenType::kLeftBrace)) {
+    ErrorAtCurrent("expected '{' before function body");
+    return nullptr;
+  }
+  Expression* const body{ParseBlock()};
+  if (body == nullptr) return nullptr;
+  return ast_.CreateFunctionDeclarationStatement(
+      name, std::move(parameters), return_type, body,
+      MergeSpans(fn_span, body->span));
+}
+
+Statement* Parser::ParseReturnStatement() {
+  const SourceSpan return_span{previous_.span};
+  Expression* const value{ParseExpression()};
+  if (value == nullptr) return nullptr;
+  if (!Match(TokenType::kSemicolon)) {
+    ErrorAtCurrent("expected ';' after return value");
+    return nullptr;
+  }
+  return ast_.CreateReturnStatement(value,
+                                    MergeSpans(return_span, previous_.span));
 }
 
 Statement* Parser::ParseIfStatement() {

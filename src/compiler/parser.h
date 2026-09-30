@@ -32,6 +32,7 @@ class Parser {
     kTerm,
     kFactor,
     kUnary,
+    kCall,
   };
 
   using PrefixParseFunction = Expression* (Parser::*)();
@@ -63,6 +64,7 @@ class Parser {
   Expression* ParseStringLiteral();
   Expression* ParseVariable();
   Expression* ParseGrouping();
+  Expression* ParseCall(Expression* callee);
   Expression* ParseBlock();
   Expression* ParseUnary();
   Expression* ParseBinary(Expression* left);
@@ -70,6 +72,8 @@ class Parser {
 
   Statement* ParseStatement();
   Statement* ParseVariableDeclaration();
+  Statement* ParseFunctionDeclaration();
+  Statement* ParseReturnStatement();
   Statement* ParseIfStatement();
   Statement* ParseWhileStatement();
   Statement* ParseForStatement();
