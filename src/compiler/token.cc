@@ -22,6 +22,24 @@ StringView ToString(TokenType type) {
       return "let";
     case TokenType::kMut:
       return "mut";
+    case TokenType::kIf:
+      return "if";
+    case TokenType::kElse:
+      return "else";
+    case TokenType::kWhile:
+      return "while";
+    case TokenType::kBreak:
+      return "break";
+    case TokenType::kContinue:
+      return "continue";
+    case TokenType::kFor:
+      return "for";
+    case TokenType::kSwitch:
+      return "switch";
+    case TokenType::kCase:
+      return "case";
+    case TokenType::kDefault:
+      return "default";
     case TokenType::kLeftParen:
       return "left_paren";
     case TokenType::kRightParen:
@@ -38,6 +56,10 @@ StringView ToString(TokenType type) {
       return "plus";
     case TokenType::kMinus:
       return "minus";
+    case TokenType::kAmpAmp:
+      return "amp_amp";
+    case TokenType::kPipePipe:
+      return "pipe_pipe";
     case TokenType::kBang:
       return "bang";
     case TokenType::kBangEqual:
@@ -58,6 +80,8 @@ StringView ToString(TokenType type) {
       return "colon";
     case TokenType::kSemicolon:
       return "semicolon";
+    case TokenType::kQuestion:
+      return "question";
     case TokenType::kEndOfFile:
       return "eof";
     case TokenType::kInvalid:

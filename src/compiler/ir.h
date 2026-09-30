@@ -18,6 +18,10 @@ enum class IrOpcode {
   kStoreGlobal,
   kLoadLocal,
   kStoreLocal,
+  kMove,
+  kLabel,
+  kJump,
+  kJumpIfFalse,
 
   kNegate,
   kLogicalNot,
@@ -40,6 +44,7 @@ enum class IrOpcode {
 using StringConstantId = u32;
 using IrGlobalId = u32;
 using IrLocalId = u32;
+using IrLabelId = u32;
 
 struct IrConstant {
   IrValueId destination;
@@ -68,6 +73,22 @@ struct IrLocal {
   IrLocalId local;
 };
 
+struct IrMove {
+  IrValueId destination;
+  IrValueId source;
+};
+
+struct IrLabel {
+  IrLabelId label;
+};
+struct IrJump {
+  IrLabelId target;
+};
+struct IrJumpIfFalse {
+  IrValueId condition;
+  IrLabelId target;
+};
+
 struct IrUnary {
   IrValueId destination;
   IrValueId operand;
@@ -91,6 +112,10 @@ struct IrInstruction {
     IrConvert convert;
     IrGlobal global;
     IrLocal local;
+    IrMove move;
+    IrLabel label;
+    IrJump jump;
+    IrJumpIfFalse jump_if_false;
     IrUnary unary;
     IrBinary binary;
     IrReturn return_;

@@ -15,6 +15,8 @@ enum class UnaryOperator {
 };
 
 enum class BinaryOperator {
+  kLogicalAnd,
+  kLogicalOr,
   kMultiply,
   kDivide,
   kAdd,
@@ -39,12 +41,14 @@ enum class ExpressionKind {
   kStringLiteral,
   kVariable,
   kAssignment,
+  kConditional,
   kBlock,
   kUnary,
   kBinary,
 };
 
 struct Expression;
+struct Statement;
 struct CompilationUnit;
 
 struct BooleanLiteralExpression {
@@ -76,6 +80,12 @@ struct AssignmentExpression {
   Expression* value;
 };
 
+struct ConditionalExpression {
+  Expression* condition;
+  Expression* then_expression;
+  Expression* else_expression;
+};
+
 struct BlockExpression {
   CompilationUnit* body;
   Expression* trailing_expression;
@@ -104,6 +114,7 @@ struct Expression {
     StringLiteralExpression string_literal;
     VariableExpression variable;
     AssignmentExpression assignment;
+    ConditionalExpression conditional;
     BlockExpression block;
     UnaryExpression unary;
     BinaryExpression binary;
@@ -117,7 +128,15 @@ struct StatementId {
 enum class StatementKind {
   kExpression,
   kVariableDeclaration,
+  kIf,
+  kWhile,
+  kFor,
+  kBreak,
+  kContinue,
+  kSwitch,
 };
+
+struct EmptyStatement {};
 
 struct ExpressionStatement {
   Expression* expression;
@@ -130,6 +149,39 @@ struct VariableDeclarationStatement {
   bool is_mutable;
 };
 
+struct IfStatement {
+  Expression* condition;
+  Expression* then_block;
+  Expression* else_block;
+};
+
+struct WhileStatement {
+  Expression* condition;
+  Expression* body;
+};
+
+struct ForStatement {
+  Statement* initializer;
+  Expression* condition;
+  Expression* increment;
+  Expression* body;
+};
+
+struct SwitchCase {
+  Expression* value;
+  Expression* body;
+};
+
+struct SwitchData {
+  Expression* value;
+  Vector<SwitchCase> cases;
+  Expression* default_body;
+};
+
+struct SwitchStatement {
+  SwitchData* data;
+};
+
 struct Statement {
   StatementId id;
   StatementKind kind;
@@ -138,6 +190,12 @@ struct Statement {
   union {
     ExpressionStatement expression;
     VariableDeclarationStatement variable_declaration;
+    IfStatement if_;
+    WhileStatement while_;
+    ForStatement for_;
+    EmptyStatement break_;
+    EmptyStatement continue_;
+    SwitchStatement switch_;
   };
 };
 
@@ -156,6 +214,10 @@ class Ast {
   Expression* CreateVariableExpression(StringView name, SourceSpan span);
   Expression* CreateAssignmentExpression(StringView name, Expression* value,
                                          SourceSpan span);
+  Expression* CreateConditionalExpression(Expression* condition,
+                                          Expression* then_expression,
+                                          Expression* else_expression,
+                                          SourceSpan span);
   Expression* CreateBlockExpression(CompilationUnit* body,
                                     Expression* trailing_expression,
                                     SourceSpan span);
@@ -173,6 +235,17 @@ class Ast {
                                                 Expression* initializer,
                                                 bool is_mutable,
                                                 SourceSpan span);
+  Statement* CreateIfStatement(Expression* condition, Expression* then_block,
+                               Expression* else_block, SourceSpan span);
+  Statement* CreateWhileStatement(Expression* condition, Expression* body,
+                                  SourceSpan span);
+  Statement* CreateForStatement(Statement* initializer, Expression* condition,
+                                Expression* increment, Expression* body,
+                                SourceSpan span);
+  Statement* CreateBreakStatement(SourceSpan span);
+  Statement* CreateContinueStatement(SourceSpan span);
+  Statement* CreateSwitchStatement(Expression* value, Vector<SwitchCase> cases,
+                                   Expression* default_body, SourceSpan span);
 
  private:
   // TODO(m4jr0): Allocate AST nodes from an arena.
@@ -181,6 +254,7 @@ class Ast {
   // TODO(m4jr0): Allocate AST nodes from an arena.
   Vector<UniquePtr<Statement>> statements_;
   Vector<UniquePtr<CompilationUnit>> compilation_units_;
+  Vector<UniquePtr<SwitchData>> switches_;
 };
 
 }  // namespace fell

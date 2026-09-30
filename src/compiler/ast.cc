@@ -128,6 +128,28 @@ Expression* Ast::CreateAssignmentExpression(StringView name, Expression* value,
   return result;
 }
 
+Expression* Ast::CreateConditionalExpression(Expression* condition,
+                                             Expression* then_expression,
+                                             Expression* else_expression,
+                                             SourceSpan span) {
+  FELL_ASSERT(condition != nullptr);
+  FELL_ASSERT(then_expression != nullptr);
+  FELL_ASSERT(else_expression != nullptr);
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{.value = static_cast<u32>(expressions_.size())};
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kConditional,
+      .span = span,
+      .conditional = {.condition = condition,
+                      .then_expression = then_expression,
+                      .else_expression = else_expression},
+  })};
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+  return result;
+}
+
 CompilationUnit* Ast::CreateCompilationUnit() {
   auto unit{MakeUnique<CompilationUnit>()};
   auto* result{unit.get()};
@@ -246,6 +268,108 @@ Statement* Ast::CreateVariableDeclarationStatement(StringView name,
           },
   })};
 
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
+  return result;
+}
+
+Statement* Ast::CreateIfStatement(Expression* condition, Expression* then_block,
+                                  Expression* else_block, SourceSpan span) {
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kIf,
+      .span = span,
+      .if_ = {.condition = condition,
+              .then_block = then_block,
+              .else_block = else_block},
+  })};
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
+  return result;
+}
+
+Statement* Ast::CreateWhileStatement(Expression* condition, Expression* body,
+                                     SourceSpan span) {
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kWhile,
+      .span = span,
+      .while_ = {.condition = condition, .body = body},
+  })};
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
+  return result;
+}
+
+Statement* Ast::CreateForStatement(Statement* initializer,
+                                   Expression* condition, Expression* increment,
+                                   Expression* body, SourceSpan span) {
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kFor,
+      .span = span,
+      .for_ = {.initializer = initializer,
+               .condition = condition,
+               .increment = increment,
+               .body = body},
+  })};
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
+  return result;
+}
+
+Statement* Ast::CreateBreakStatement(SourceSpan span) {
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kBreak,
+      .span = span,
+      .break_ = {},
+  })};
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
+  return result;
+}
+
+Statement* Ast::CreateContinueStatement(SourceSpan span) {
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kContinue,
+      .span = span,
+      .continue_ = {},
+  })};
+  auto* result{statement.get()};
+  statements_.push_back(std::move(statement));
+  return result;
+}
+
+Statement* Ast::CreateSwitchStatement(Expression* value,
+                                      Vector<SwitchCase> cases,
+                                      Expression* default_body,
+                                      SourceSpan span) {
+  auto data{MakeUnique<SwitchData>(SwitchData{.value = value,
+                                              .cases = std::move(cases),
+                                              .default_body = default_body})};
+  SwitchData* data_ptr{data.get()};
+  switches_.push_back(std::move(data));
+
+  FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
+  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kSwitch,
+      .span = span,
+      .switch_ = {.data = data_ptr},
+  })};
   auto* result{statement.get()};
   statements_.push_back(std::move(statement));
   return result;

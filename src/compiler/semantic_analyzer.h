@@ -82,6 +82,7 @@ class SemanticAnalyzer {
 
   Vector<Symbol> symbols_;
   u32 scope_depth_{0};
+  u32 loop_depth_{0};
   u32 next_global_id_{0};
   u32 next_local_id_{0};
 };

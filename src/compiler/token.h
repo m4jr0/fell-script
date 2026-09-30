@@ -17,6 +17,15 @@ enum class TokenType {
   kIdentifier,
   kLet,
   kMut,
+  kIf,
+  kElse,
+  kWhile,
+  kBreak,
+  kContinue,
+  kFor,
+  kSwitch,
+  kCase,
+  kDefault,
 
   kLeftParen,
   kRightParen,
@@ -27,6 +36,8 @@ enum class TokenType {
   kSlash,
   kPlus,
   kMinus,
+  kAmpAmp,
+  kPipePipe,
 
   kBang,
   kBangEqual,
@@ -39,6 +50,7 @@ enum class TokenType {
 
   kColon,
   kSemicolon,
+  kQuestion,
 
   kEndOfFile,
   kInvalid,

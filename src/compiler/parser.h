@@ -24,6 +24,9 @@ class Parser {
  private:
   enum class Precedence {
     kNone,
+    kConditional,
+    kLogicalOr,
+    kLogicalAnd,
     kEquality,
     kComparison,
     kTerm,
@@ -63,9 +66,16 @@ class Parser {
   Expression* ParseBlock();
   Expression* ParseUnary();
   Expression* ParseBinary(Expression* left);
+  Expression* ParseConditional(Expression* condition);
 
   Statement* ParseStatement();
   Statement* ParseVariableDeclaration();
+  Statement* ParseIfStatement();
+  Statement* ParseWhileStatement();
+  Statement* ParseForStatement();
+  Statement* ParseBreakStatement();
+  Statement* ParseContinueStatement();
+  Statement* ParseSwitchStatement();
   Type ParseType();
 
   Token current_;

@@ -76,6 +76,7 @@ void SemanticAnalyzer::EndScope() {
 SemanticResult SemanticAnalyzer::Analyze(const CompilationUnit& unit) {
   symbols_.clear();
   scope_depth_ = 0;
+  loop_depth_ = 0;
   next_global_id_ = 0;
   next_local_id_ = 0;
   SemanticResult result{};
@@ -248,6 +249,140 @@ void SemanticAnalyzer::AnalyzeStatement(const Statement& statement,
       result.model.Set(statement, {.type = type, .binding = binding});
       return;
     }
+
+    case StatementKind::kIf: {
+      AnalyzeExpression(*statement.if_.condition, result);
+      const Type condition_type{
+          result.model.Get(*statement.if_.condition).type};
+      if (condition_type != Type::kBool && condition_type != Type::kError) {
+        result.diagnostics.push_back({.severity = DiagnosticSeverity::kError,
+                                      .message = "if condition must be bool",
+                                      .span = statement.if_.condition->span});
+      }
+      AnalyzeExpression(*statement.if_.then_block, result);
+      if (statement.if_.else_block != nullptr)
+        AnalyzeExpression(*statement.if_.else_block, result);
+      const bool error =
+          condition_type == Type::kError || condition_type != Type::kBool ||
+          result.model.Get(*statement.if_.then_block).type == Type::kError ||
+          (statement.if_.else_block != nullptr &&
+           result.model.Get(*statement.if_.else_block).type == Type::kError);
+      result.model.Set(statement, {.type = error ? Type::kError : Type::kUnit});
+      return;
+    }
+
+    case StatementKind::kWhile: {
+      AnalyzeExpression(*statement.while_.condition, result);
+      const Type condition_type{
+          result.model.Get(*statement.while_.condition).type};
+      if (condition_type != Type::kBool && condition_type != Type::kError) {
+        result.diagnostics.push_back(
+            {.severity = DiagnosticSeverity::kError,
+             .message = "while condition must be bool",
+             .span = statement.while_.condition->span});
+      }
+      ++loop_depth_;
+      AnalyzeExpression(*statement.while_.body, result);
+      --loop_depth_;
+      const bool error =
+          condition_type == Type::kError || condition_type != Type::kBool ||
+          result.model.Get(*statement.while_.body).type == Type::kError;
+      result.model.Set(statement, {.type = error ? Type::kError : Type::kUnit});
+      return;
+    }
+
+    case StatementKind::kFor: {
+      BeginScope();
+      bool error{false};
+      if (statement.for_.initializer != nullptr) {
+        AnalyzeStatement(*statement.for_.initializer, result);
+        error =
+            result.model.Get(*statement.for_.initializer).type == Type::kError;
+      }
+      if (statement.for_.condition != nullptr) {
+        AnalyzeExpression(*statement.for_.condition, result);
+        const Type condition_type{
+            result.model.Get(*statement.for_.condition).type};
+        if (condition_type != Type::kBool && condition_type != Type::kError) {
+          result.diagnostics.push_back(
+              {.severity = DiagnosticSeverity::kError,
+               .message = "for condition must be bool",
+               .span = statement.for_.condition->span});
+          error = true;
+        } else if (condition_type == Type::kError) {
+          error = true;
+        }
+      }
+      if (statement.for_.increment != nullptr) {
+        AnalyzeExpression(*statement.for_.increment, result);
+        error = error || result.model.Get(*statement.for_.increment).type ==
+                             Type::kError;
+      }
+      ++loop_depth_;
+      AnalyzeExpression(*statement.for_.body, result);
+      --loop_depth_;
+      error =
+          error || result.model.Get(*statement.for_.body).type == Type::kError;
+      EndScope();
+      result.model.Set(statement, {.type = error ? Type::kError : Type::kUnit});
+      return;
+    }
+
+    case StatementKind::kBreak:
+      if (loop_depth_ == 0) {
+        result.diagnostics.push_back(
+            {.severity = DiagnosticSeverity::kError,
+             .message = "'break' is only valid inside a loop",
+             .span = statement.span});
+        result.model.Set(statement, {.type = Type::kError});
+      } else {
+        result.model.Set(statement, {.type = Type::kUnit});
+      }
+      return;
+
+    case StatementKind::kContinue:
+      if (loop_depth_ == 0) {
+        result.diagnostics.push_back(
+            {.severity = DiagnosticSeverity::kError,
+             .message = "'continue' is only valid inside a loop",
+             .span = statement.span});
+        result.model.Set(statement, {.type = Type::kError});
+      } else {
+        result.model.Set(statement, {.type = Type::kUnit});
+      }
+      return;
+
+    case StatementKind::kSwitch: {
+      const SwitchData& data{*statement.switch_.data};
+      AnalyzeExpression(*data.value, result);
+      const Type switch_type{result.model.Get(*data.value).type};
+      bool error{switch_type == Type::kError || switch_type == Type::kUnit};
+      for (const SwitchCase& case_ : data.cases) {
+        if (!TryApplyIntegerLiteralContext(*case_.value, switch_type, result))
+          AnalyzeExpression(*case_.value, result);
+        const Type case_type{result.model.Get(*case_.value).type};
+        if (case_type != Type::kError && case_type != switch_type &&
+            (!IsNumericType(case_type) || !IsNumericType(switch_type) ||
+             !CanImplicitlyConvert(case_type, switch_type))) {
+          result.diagnostics.push_back(
+              {.severity = DiagnosticSeverity::kError,
+               .message = "switch case is not implicitly convertible to switch "
+                          "value type",
+               .span = case_.value->span});
+          error = true;
+        }
+        error = error || case_type == Type::kError;
+        AnalyzeExpression(*case_.body, result);
+        error = error || result.model.Get(*case_.body).type == Type::kError;
+      }
+      if (data.default_body != nullptr) {
+        AnalyzeExpression(*data.default_body, result);
+        error =
+            error || result.model.Get(*data.default_body).type == Type::kError;
+      }
+      result.model.Set(statement, {.type = error ? Type::kError : Type::kUnit});
+      return;
+    }
   }
   FELL_UNREACHABLE();
 }
@@ -355,6 +490,48 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
       return;
     }
 
+    case ExpressionKind::kConditional: {
+      const auto& conditional{expression.conditional};
+      AnalyzeExpression(*conditional.condition, result);
+      AnalyzeExpression(*conditional.then_expression, result);
+      AnalyzeExpression(*conditional.else_expression, result);
+      const Type condition_type{result.model.Get(*conditional.condition).type};
+      Type then_type{result.model.Get(*conditional.then_expression).type};
+      Type else_type{result.model.Get(*conditional.else_expression).type};
+      if (condition_type != Type::kBool || then_type == Type::kError ||
+          else_type == Type::kError || then_type == Type::kUnit ||
+          else_type == Type::kUnit) {
+        result.model.Set(expression, {.type = Type::kError});
+        if (condition_type != Type::kBool && condition_type != Type::kError)
+          result.diagnostics.push_back(
+              {.severity = DiagnosticSeverity::kError,
+               .message = "conditional condition must be bool",
+               .span = conditional.condition->span});
+        else if (then_type != Type::kError && else_type != Type::kError)
+          result.diagnostics.push_back(
+              {.severity = DiagnosticSeverity::kError,
+               .message = "conditional branches must produce values",
+               .span = expression.span});
+        return;
+      }
+      Type result_type{then_type};
+      if (then_type != else_type) {
+        if (!IsNumericType(then_type) || !IsNumericType(else_type) ||
+            (result_type = FindCommonNumericType(then_type, else_type)) ==
+                Type::kInvalid) {
+          result.model.Set(expression, {.type = Type::kError});
+          result.diagnostics.push_back(
+              {.severity = DiagnosticSeverity::kError,
+               .message = "conditional branches have incompatible types",
+               .span = expression.span});
+          return;
+        }
+      }
+      result.model.Set(expression,
+                       {.type = result_type, .operand_type = result_type});
+      return;
+    }
+
     case ExpressionKind::kBlock: {
       BeginScope();
       bool has_error{false};
@@ -451,6 +628,22 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
       const auto& right{result.model.Get(*binary.right)};
       if (left.type == Type::kError || right.type == Type::kError) {
         result.model.Set(expression, {.type = Type::kError});
+        return;
+      }
+
+      const bool is_logical{binary.op == BinaryOperator::kLogicalAnd ||
+                            binary.op == BinaryOperator::kLogicalOr};
+      if (is_logical) {
+        if (left.type != Type::kBool || right.type != Type::kBool) {
+          result.model.Set(expression, {.type = Type::kError});
+          result.diagnostics.push_back(
+              {.severity = DiagnosticSeverity::kError,
+               .message = "logical operators require bool operands",
+               .span = expression.span});
+          return;
+        }
+        result.model.Set(expression,
+                         {.type = Type::kBool, .operand_type = Type::kBool});
         return;
       }
 

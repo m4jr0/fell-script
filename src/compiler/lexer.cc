@@ -58,6 +58,16 @@ Token Lexer::NextToken() {
       Advance();
       return MakeToken(TokenType::kMinus, start);
 
+    case '&':
+      Advance();
+      return MakeToken(Match('&') ? TokenType::kAmpAmp : TokenType::kInvalid,
+                       start);
+
+    case '|':
+      Advance();
+      return MakeToken(Match('|') ? TokenType::kPipePipe : TokenType::kInvalid,
+                       start);
+
     case '!':
       Advance();
       return MakeToken(Match('=') ? TokenType::kBangEqual : TokenType::kBang,
@@ -85,6 +95,10 @@ Token Lexer::NextToken() {
     case ';':
       Advance();
       return MakeToken(TokenType::kSemicolon, start);
+
+    case '?':
+      Advance();
+      return MakeToken(TokenType::kQuestion, start);
 
     case '"':
       return TokenizeString(start);
@@ -293,10 +307,30 @@ bool Lexer::IsIdentifierContinue(char character) const {
 
 TokenType Lexer::GetIdentifierType(StringView lexeme) const {
   switch (lexeme[0]) {
+    case 'b':
+      if (lexeme == "break") return TokenType::kBreak;
+      break;
+
+    case 'c':
+      if (lexeme == "case") return TokenType::kCase;
+      if (lexeme == "continue") return TokenType::kContinue;
+      break;
+
+    case 'd':
+      if (lexeme == "default") return TokenType::kDefault;
+      break;
+
+    case 'e':
+      if (lexeme == "else") return TokenType::kElse;
+      break;
+
     case 'f':
-      if (lexeme == "false") {
-        return TokenType::kFalse;
-      }
+      if (lexeme == "false") return TokenType::kFalse;
+      if (lexeme == "for") return TokenType::kFor;
+      break;
+
+    case 'i':
+      if (lexeme == "if") return TokenType::kIf;
       break;
 
     case 'l':
@@ -311,10 +345,18 @@ TokenType Lexer::GetIdentifierType(StringView lexeme) const {
       }
       break;
 
+    case 's':
+      if (lexeme == "switch") return TokenType::kSwitch;
+      break;
+
     case 't':
       if (lexeme == "true") {
         return TokenType::kTrue;
       }
+      break;
+
+    case 'w':
+      if (lexeme == "while") return TokenType::kWhile;
       break;
   }
 

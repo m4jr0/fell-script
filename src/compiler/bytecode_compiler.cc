@@ -574,6 +574,18 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
       .local_count = ir.local_count,
   };
 
+  Vector<u32> label_targets;
+  u32 bytecode_index{0};
+  for (const IrInstruction& instruction : ir.instructions) {
+    if (instruction.opcode == IrOpcode::kLabel) {
+      if (label_targets.size() <= instruction.label.label)
+        label_targets.resize(instruction.label.label + 1);
+      label_targets[instruction.label.label] = bytecode_index;
+    } else {
+      ++bytecode_index;
+    }
+  }
+
   for (const IrInstruction& instruction : ir.instructions) {
     switch (instruction.opcode) {
       case IrOpcode::kConstant: {
@@ -632,6 +644,32 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
             .local = {.value = ToRegister(instruction.local.value),
                       .local = instruction.local.local},
         });
+        break;
+
+      case IrOpcode::kLabel:
+        break;
+
+      case IrOpcode::kMove:
+        module.instructions.push_back(
+            {.opcode = Opcode::kMove,
+             .move = {.destination = ToRegister(instruction.move.destination),
+                      .source = ToRegister(instruction.move.source)}});
+        break;
+
+      case IrOpcode::kJump:
+        FELL_ASSERT(instruction.jump.target < label_targets.size());
+        module.instructions.push_back(
+            {.opcode = Opcode::kJump,
+             .jump = {.target = label_targets[instruction.jump.target]}});
+        break;
+
+      case IrOpcode::kJumpIfFalse:
+        FELL_ASSERT(instruction.jump_if_false.target < label_targets.size());
+        module.instructions.push_back(
+            {.opcode = Opcode::kJumpIfFalse,
+             .jump_if_false = {
+                 .condition = ToRegister(instruction.jump_if_false.condition),
+                 .target = label_targets[instruction.jump_if_false.target]}});
         break;
 
       case IrOpcode::kConvert: {

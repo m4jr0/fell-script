@@ -262,6 +262,14 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
                instruction.opcode == Opcode::kStoreLocal) {
       writer.WriteU16(instruction.local.value);
       writer.WriteU32(instruction.local.local);
+    } else if (instruction.opcode == Opcode::kMove) {
+      writer.WriteU16(instruction.move.destination);
+      writer.WriteU16(instruction.move.source);
+    } else if (instruction.opcode == Opcode::kJump) {
+      writer.WriteU32(instruction.jump.target);
+    } else if (instruction.opcode == Opcode::kJumpIfFalse) {
+      writer.WriteU16(instruction.jump_if_false.condition);
+      writer.WriteU32(instruction.jump_if_false.target);
     } else if (IsConvertOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.convert.destination);
       writer.WriteU16(instruction.convert.source);
@@ -409,6 +417,25 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
           .opcode = opcode,
           .load_immediate = load,
       });
+    } else if (opcode == Opcode::kMove) {
+      MoveInstruction move{};
+      if (!reader.ReadU16(move.destination) || !reader.ReadU16(move.source) ||
+          !IsValidRegister(move.destination, module) ||
+          !IsValidRegister(move.source, module))
+        return {.module = {}, .error = "invalid move instruction"};
+      module.instructions.push_back({.opcode = opcode, .move = move});
+    } else if (opcode == Opcode::kJump) {
+      JumpInstruction jump{};
+      if (!reader.ReadU32(jump.target) || jump.target > instruction_count)
+        return {.module = {}, .error = "invalid jump instruction"};
+      module.instructions.push_back({.opcode = opcode, .jump = jump});
+    } else if (opcode == Opcode::kJumpIfFalse) {
+      JumpIfFalseInstruction jump{};
+      if (!reader.ReadU16(jump.condition) || !reader.ReadU32(jump.target) ||
+          !IsValidRegister(jump.condition, module) ||
+          jump.target > instruction_count)
+        return {.module = {}, .error = "invalid conditional jump instruction"};
+      module.instructions.push_back({.opcode = opcode, .jump_if_false = jump});
     } else if (IsConvertOpcode(opcode)) {
       ConvertInstruction convert{};
       if (!reader.ReadU16(convert.destination) ||

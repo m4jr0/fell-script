@@ -13,6 +13,9 @@ enum class Opcode : u8 {
   kStoreGlobal,
   kLoadLocal,
   kStoreLocal,
+  kMove,
+  kJump,
+  kJumpIfFalse,
 
   kConvertS8ToS16,
   kConvertS8ToS32,
@@ -198,6 +201,18 @@ struct LocalInstruction {
   LocalId local;
 };
 
+struct MoveInstruction {
+  RegisterId destination;
+  RegisterId source;
+};
+struct JumpInstruction {
+  u32 target;
+};
+struct JumpIfFalseInstruction {
+  RegisterId condition;
+  u32 target;
+};
+
 struct ConvertInstruction {
   RegisterId destination;
   RegisterId source;
@@ -227,6 +242,9 @@ struct Instruction {
     LoadStringInstruction load_string;
     GlobalInstruction global;
     LocalInstruction local;
+    MoveInstruction move;
+    JumpInstruction jump;
+    JumpIfFalseInstruction jump_if_false;
     ConvertInstruction convert;
     UnaryInstruction unary;
     BinaryInstruction binary;

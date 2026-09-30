@@ -370,7 +370,8 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
                        get_register(instruction.binary.right)); \
     break
 
-  for (const Instruction& instruction : module.instructions) {
+  for (s64 ip{0}; ip < static_cast<s64>(module.instructions.size()); ++ip) {
+    const Instruction& instruction{module.instructions[static_cast<u64>(ip)]};
     switch (instruction.opcode) {
       case Opcode::kLoadGlobal:
         FELL_ASSERT(instruction.global.global < globals_.size());
@@ -394,6 +395,23 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_ASSERT(instruction.local.local < locals_.size());
         locals_[instruction.local.local] =
             get_register(instruction.local.value);
+        break;
+
+      case Opcode::kMove:
+        get_register(instruction.move.destination) =
+            get_register(instruction.move.source);
+        break;
+
+      case Opcode::kJump:
+        FELL_ASSERT(instruction.jump.target <= module.instructions.size());
+        ip = static_cast<s64>(instruction.jump.target) - 1;
+        break;
+
+      case Opcode::kJumpIfFalse:
+        FELL_ASSERT(instruction.jump_if_false.target <=
+                    module.instructions.size());
+        if (!get_register(instruction.jump_if_false.condition).bool_value)
+          ip = static_cast<s64>(instruction.jump_if_false.target) - 1;
         break;
 
       case Opcode::kLoadImmediate:

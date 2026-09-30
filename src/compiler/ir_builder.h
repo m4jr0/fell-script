@@ -11,12 +11,19 @@ class IrBuilder {
                   bool return_last_expression = false);
 
  private:
+  struct LoopContext {
+    IrLabelId continue_target;
+    IrLabelId break_target;
+  };
+
   void BuildStatement(const Statement& statement,
                       const SemanticModel& semantics, IrProgram& program);
   IrValueId BuildExpression(const Expression& expression,
                             const SemanticModel& semantics, IrProgram& program);
 
   IrValueId AllocateValue(IrProgram& program, Type type);
+  IrLabelId AllocateLabel();
+  void EmitLabel(IrProgram& program, IrLabelId label);
 
   IrValueId ConvertIfNeeded(IrValueId source, Type destination_type,
                             IrProgram& program);
@@ -34,6 +41,9 @@ class IrBuilder {
                          Type type);
   void EmitStringConstant(IrProgram& program, IrValueId destination,
                           StringView value);
+
+  Vector<LoopContext> loop_stack_;
+  IrLabelId next_label_{0};
 };
 
 }  // namespace fell

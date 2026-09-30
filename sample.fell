@@ -1,163 +1,58 @@
-let signed8: s8 = -128;
-let signed16: s16 = -32000;
-let signed32: s32 = 42;
-let signed64: s64 = 9223372036854775807;
-
-let unsigned8: u8 = 255;
-let unsigned16: u16 = 65000;
-let unsigned32: u32 = 4000000000;
-let unsigned64: u64 = 21;
-
-let float32: f32 = 1.5f32;
-let float64: f64 = 3.141592653589793;
-
-let inferredInteger = 42;
-let inferredFloat = 2.5;
-
-let contextualU8: u8 = 21;
-let contextualU64: u64 = 21;
-let contextualS64: s64 = 21;
-let minimumS8: s8 = -128;
-
-let a = 10;
-let b = 20;
-
-let addition = a + b;
-let subtraction = b - a;
-let multiplication = a * b;
-let division = b / a;
-
-let precedence = 1 + 2 * 3;
-let grouping = (1 + 2) * 3;
-let negative = -42;
-
-let small: u8 = 10;
-let widened: u64 = small;
-
-let enabled = true;
-let disabled = false;
-
-let logicalNot = !enabled;
-
-let boolEqual = enabled == true;
-let boolNotEqual = enabled != disabled;
-
-let equal = 42 == 42;
-let notEqual = 42 != 21;
-
-let less = 10 < 20;
-let lessEqual = 20 <= 20;
-let greater = 30 > 20;
-let greaterEqual = 30 >= 30;
-
-let mixedComparison = 1u32 < 2s64;
-
-let comparisonChain = (1 + 2 < 4) == true;
-
-let hello = "Hello";
-let world = "world";
-
-let greeting = hello + " " + world;
-
-let sameString = "Fell" == "Fell";
-let differentString = "Fell" != "Rust";
-
-let mut health: s32 = 100;
-let damage: s32 = 21;
-
+let mut health = 100;
+let damage = 25;
 health = health - damage;
-health = health - 10;
+health == 75;
 
-let mut characterName = "Geralt";
-characterName = characterName + " of Rivia";
+let mut name: string = "Geralt";
+name = name + " of Rivia";
+name == "Geralt of Rivia";
 
-{
-    let local = 42;
-    let anotherLocal = local + 8;
+let mut counter = 0;
+while counter < 10 {
+  counter = counter + 1;
 
-    anotherLocal;
+  if counter == 2 {
+    continue;
+  }
+
+  if counter == 5 {
+    break;
+  }
+
+  health = health - 1;
 }
 
-{
-    let bonus = 5;
+let mut total = 0;
+for (let mut i = 0; i < 10; i = i + 1) {
+  if i == 3 {
+    continue;
+  }
 
-    {
-        let total = health + bonus;
-        total;
-    }
+  if i == 7 {
+    break;
+  }
+
+  total = total + i;
 }
 
-let value = 10;
-
-{
-    let value = 20;
-
-    {
-        let value = 30;
-        value;
-    }
-
-    value;
+if counter == 5 {
+  counter = counter + 10;
+} else {
+  counter = 0;
 }
 
-let originalValue = value;
+let is_large = counter > 10 && counter < 100;
+let fallback = false || is_large;
+let selected = fallback ? counter : 0;
 
-{
-    let value = value + 1;
-    value;
+switch selected {
+  case 0 {
+    counter = 1;
+  }
+  case 15 {
+    counter = counter + 100;
+  }
+  default {
+    counter = 2;
+  }
 }
-
-{
-    let mut counter = 0;
-
-    counter = counter + 1;
-    counter = counter + 1;
-    counter = counter + 1;
-
-    counter;
-}
-
-let blockValue = {
-    let left = 20;
-    let right = 22;
-
-    left + right
-};
-
-let nestedBlockValue = {
-    let base = 10;
-
-    let inner = {
-        let multiplier = 4;
-
-        base * multiplier
-    };
-
-    inner + 2
-};
-
-{
-    let mut temporary = 10;
-    temporary = temporary + 5;
-}
-
-let scopedGreeting = {
-    let first = "Hello";
-    let second = "Fell";
-
-    first + ", " + second
-};
-
-let baseDamage: s32 = 21;
-
-let finalDamage = {
-    let weaponBonus: s32 = 10;
-    let mut result = baseDamage + weaponBonus;
-
-    {
-        let enchantmentBonus: s32 = 5;
-        result = result + enchantmentBonus;
-    }
-
-    result
-};

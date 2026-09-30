@@ -23,6 +23,12 @@ StringView ToString(Opcode opcode) {
       return "load_local";
     case Opcode::kStoreLocal:
       return "store_local";
+    case Opcode::kMove:
+      return "move";
+    case Opcode::kJump:
+      return "jump";
+    case Opcode::kJumpIfFalse:
+      return "jump_if_false";
     case Opcode::kConvertS8ToS16:
       return "convert_s8_to_s16";
     case Opcode::kConvertS8ToS32:
@@ -351,6 +357,20 @@ String DumpBytecode(const BytecodeModule& module) {
       case Opcode::kStoreLocal:
         output << " #" << instruction.local.local << ", r"
                << instruction.local.value;
+        break;
+
+      case Opcode::kMove:
+        output << " r" << instruction.move.destination << ", r"
+               << instruction.move.source;
+        break;
+
+      case Opcode::kJump:
+        output << " " << instruction.jump.target;
+        break;
+
+      case Opcode::kJumpIfFalse:
+        output << " r" << instruction.jump_if_false.condition << ", "
+               << instruction.jump_if_false.target;
         break;
 
       case Opcode::kConvertS8ToS16:

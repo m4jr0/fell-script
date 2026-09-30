@@ -8,6 +8,8 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
                            const SemanticModel& semantics,
                            bool return_last_expression) {
   IrProgram program{};
+  next_label_ = 0;
+  loop_stack_.clear();
   program.global_count = semantics.global_count();
   program.local_count = semantics.local_count();
   IrValueId last_value{};
@@ -62,6 +64,115 @@ void IrBuilder::BuildStatement(const Statement& statement,
                       .local = statement_semantics.binding.slot},
         });
       }
+      return;
+    }
+
+    case StatementKind::kIf: {
+      const IrValueId condition{
+          BuildExpression(*statement.if_.condition, semantics, program)};
+      const IrLabelId else_label{AllocateLabel()};
+      const IrLabelId end_label{AllocateLabel()};
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJumpIfFalse,
+           .jump_if_false = {.condition = condition, .target = else_label}});
+      BuildExpression(*statement.if_.then_block, semantics, program);
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJump, .jump = {.target = end_label}});
+      EmitLabel(program, else_label);
+      if (statement.if_.else_block != nullptr)
+        BuildExpression(*statement.if_.else_block, semantics, program);
+      EmitLabel(program, end_label);
+      return;
+    }
+
+    case StatementKind::kWhile: {
+      const IrLabelId condition_label{AllocateLabel()};
+      const IrLabelId end_label{AllocateLabel()};
+      EmitLabel(program, condition_label);
+      const IrValueId condition{
+          BuildExpression(*statement.while_.condition, semantics, program)};
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJumpIfFalse,
+           .jump_if_false = {.condition = condition, .target = end_label}});
+      loop_stack_.push_back(
+          {.continue_target = condition_label, .break_target = end_label});
+      BuildExpression(*statement.while_.body, semantics, program);
+      loop_stack_.pop_back();
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJump, .jump = {.target = condition_label}});
+      EmitLabel(program, end_label);
+      return;
+    }
+
+    case StatementKind::kFor: {
+      if (statement.for_.initializer != nullptr)
+        BuildStatement(*statement.for_.initializer, semantics, program);
+      const IrLabelId condition_label{AllocateLabel()};
+      const IrLabelId increment_label{AllocateLabel()};
+      const IrLabelId end_label{AllocateLabel()};
+      EmitLabel(program, condition_label);
+      if (statement.for_.condition != nullptr) {
+        const IrValueId condition{
+            BuildExpression(*statement.for_.condition, semantics, program)};
+        program.instructions.push_back(
+            {.opcode = IrOpcode::kJumpIfFalse,
+             .jump_if_false = {.condition = condition, .target = end_label}});
+      }
+      loop_stack_.push_back(
+          {.continue_target = increment_label, .break_target = end_label});
+      BuildExpression(*statement.for_.body, semantics, program);
+      loop_stack_.pop_back();
+      EmitLabel(program, increment_label);
+      if (statement.for_.increment != nullptr)
+        BuildExpression(*statement.for_.increment, semantics, program);
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJump, .jump = {.target = condition_label}});
+      EmitLabel(program, end_label);
+      return;
+    }
+
+    case StatementKind::kBreak:
+      FELL_ASSERT(!loop_stack_.empty());
+      program.instructions.push_back({
+          .opcode = IrOpcode::kJump,
+          .jump = {.target = loop_stack_.back().break_target},
+      });
+      return;
+
+    case StatementKind::kContinue:
+      FELL_ASSERT(!loop_stack_.empty());
+      program.instructions.push_back({
+          .opcode = IrOpcode::kJump,
+          .jump = {.target = loop_stack_.back().continue_target},
+      });
+      return;
+
+    case StatementKind::kSwitch: {
+      const SwitchData& data{*statement.switch_.data};
+      const IrValueId switch_value{
+          BuildExpression(*data.value, semantics, program)};
+      const IrLabelId end_label{AllocateLabel()};
+      for (const SwitchCase& case_ : data.cases) {
+        const IrLabelId next_label{AllocateLabel()};
+        IrValueId case_value{BuildExpression(*case_.value, semantics, program)};
+        const Type switch_type{GetIrValue(program, switch_value).type};
+        case_value = ConvertIfNeeded(case_value, switch_type, program);
+        const IrValueId matches{AllocateValue(program, Type::kBool)};
+        program.instructions.push_back({.opcode = IrOpcode::kEqual,
+                                        .binary = {.destination = matches,
+                                                   .left = switch_value,
+                                                   .right = case_value}});
+        program.instructions.push_back(
+            {.opcode = IrOpcode::kJumpIfFalse,
+             .jump_if_false = {.condition = matches, .target = next_label}});
+        BuildExpression(*case_.body, semantics, program);
+        program.instructions.push_back(
+            {.opcode = IrOpcode::kJump, .jump = {.target = end_label}});
+        EmitLabel(program, next_label);
+      }
+      if (data.default_body != nullptr)
+        BuildExpression(*data.default_body, semantics, program);
+      EmitLabel(program, end_label);
       return;
     }
   }
@@ -146,6 +257,36 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       return value;
     }
 
+    case ExpressionKind::kConditional: {
+      const auto& conditional{expression.conditional};
+      const Type result_type{semantics.Get(expression).type};
+      const IrValueId destination{AllocateValue(program, result_type)};
+      const IrValueId condition{
+          BuildExpression(*conditional.condition, semantics, program)};
+      const IrLabelId else_label{AllocateLabel()};
+      const IrLabelId end_label{AllocateLabel()};
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJumpIfFalse,
+           .jump_if_false = {.condition = condition, .target = else_label}});
+      IrValueId then_value{
+          BuildExpression(*conditional.then_expression, semantics, program)};
+      then_value = ConvertIfNeeded(then_value, result_type, program);
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kMove,
+           .move = {.destination = destination, .source = then_value}});
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kJump, .jump = {.target = end_label}});
+      EmitLabel(program, else_label);
+      IrValueId else_value{
+          BuildExpression(*conditional.else_expression, semantics, program)};
+      else_value = ConvertIfNeeded(else_value, result_type, program);
+      program.instructions.push_back(
+          {.opcode = IrOpcode::kMove,
+           .move = {.destination = destination, .source = else_value}});
+      EmitLabel(program, end_label);
+      return destination;
+    }
+
     case ExpressionKind::kBlock: {
       for (const Statement* statement : expression.block.body->statements) {
         BuildStatement(*statement, semantics, program);
@@ -202,6 +343,49 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
     case ExpressionKind::kBinary: {
       const auto& binary{expression.binary};
+      if (binary.op == BinaryOperator::kLogicalAnd ||
+          binary.op == BinaryOperator::kLogicalOr) {
+        const IrValueId destination{AllocateValue(program, Type::kBool)};
+        const IrValueId left{BuildExpression(*binary.left, semantics, program)};
+        const IrLabelId rhs_label{AllocateLabel()};
+        const IrLabelId false_label{AllocateLabel()};
+        const IrLabelId end_label{AllocateLabel()};
+
+        if (binary.op == BinaryOperator::kLogicalAnd) {
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kJumpIfFalse,
+               .jump_if_false = {.condition = left, .target = false_label}});
+          const IrValueId right{
+              BuildExpression(*binary.right, semantics, program)};
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kMove,
+               .move = {.destination = destination, .source = right}});
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kJump, .jump = {.target = end_label}});
+          EmitLabel(program, false_label);
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kMove,
+               .move = {.destination = destination, .source = left}});
+        } else {
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kJumpIfFalse,
+               .jump_if_false = {.condition = left, .target = rhs_label}});
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kMove,
+               .move = {.destination = destination, .source = left}});
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kJump, .jump = {.target = end_label}});
+          EmitLabel(program, rhs_label);
+          const IrValueId right{
+              BuildExpression(*binary.right, semantics, program)};
+          program.instructions.push_back(
+              {.opcode = IrOpcode::kMove,
+               .move = {.destination = destination, .source = right}});
+        }
+        EmitLabel(program, end_label);
+        return destination;
+      }
+
       IrValueId left{BuildExpression(*binary.left, semantics, program)};
       IrValueId right{BuildExpression(*binary.right, semantics, program)};
 
@@ -218,6 +402,9 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       const IrValueId destination{AllocateValue(program, result_type)};
       IrOpcode opcode{};
       switch (binary.op) {
+        case BinaryOperator::kLogicalAnd:
+        case BinaryOperator::kLogicalOr:
+          FELL_UNREACHABLE();
         case BinaryOperator::kMultiply:
           opcode = IrOpcode::kMultiply;
           break;
@@ -260,6 +447,16 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
   }
 
   FELL_UNREACHABLE();
+}
+
+IrLabelId IrBuilder::AllocateLabel() {
+  FELL_ASSERT(next_label_ < kMaxValue<IrLabelId>);
+  return next_label_++;
+}
+
+void IrBuilder::EmitLabel(IrProgram& program, IrLabelId label) {
+  program.instructions.push_back(
+      {.opcode = IrOpcode::kLabel, .label = {.label = label}});
 }
 
 IrValueId IrBuilder::AllocateValue(IrProgram& program, Type type) {
