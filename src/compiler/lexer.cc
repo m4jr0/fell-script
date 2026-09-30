@@ -34,6 +34,14 @@ Token Lexer::NextToken() {
       Advance();
       return MakeToken(TokenType::kRightParen, start);
 
+    case '{':
+      Advance();
+      return MakeToken(TokenType::kLeftBrace, start);
+
+    case '}':
+      Advance();
+      return MakeToken(TokenType::kRightBrace, start);
+
     case '*':
       Advance();
       return MakeToken(TokenType::kStar, start);

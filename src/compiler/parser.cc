@@ -154,6 +154,12 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     // kRightParen
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
 
+    // kLeftBrace
+    {.prefix = &Parser::ParseBlock, .infix = nullptr, .precedence = Precedence::kNone},
+
+    // kRightBrace
+    {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
+
     // kStar
     {.prefix = nullptr, .infix = &Parser::ParseBinary, .precedence = Precedence::kFactor},
 
@@ -247,7 +253,8 @@ void Parser::Synchronize() {
   panic_mode_ = false;
 
   while (!Check(TokenType::kEndOfFile)) {
-    if (previous_.type == TokenType::kSemicolon) {
+    if (Check(TokenType::kRightBrace) ||
+        previous_.type == TokenType::kSemicolon) {
       return;
     }
 
@@ -417,6 +424,55 @@ Expression* Parser::ParseGrouping() {
   return expression;
 }
 
+Expression* Parser::ParseBlock() {
+  const SourceSpan opening_span{previous_.span};
+  CompilationUnit* const body{ast_.CreateCompilationUnit()};
+  Expression* trailing_expression{nullptr};
+
+  while (!Check(TokenType::kRightBrace) && !Check(TokenType::kEndOfFile)) {
+    if (Match(TokenType::kLet)) {
+      Statement* const declaration{ParseVariableDeclaration()};
+      if (declaration == nullptr) {
+        return nullptr;
+      }
+      body->statements.push_back(declaration);
+      continue;
+    }
+
+    Expression* const expression{ParseExpression()};
+    if (expression == nullptr) {
+      return nullptr;
+    }
+
+    if (Match(TokenType::kSemicolon)) {
+      body->statements.push_back(ast_.CreateExpressionStatement(
+          expression, MergeSpans(expression->span, previous_.span)));
+      continue;
+    }
+
+    if (!Check(TokenType::kRightBrace)) {
+      if (expression->kind == ExpressionKind::kBlock) {
+        body->statements.push_back(
+            ast_.CreateExpressionStatement(expression, expression->span));
+        continue;
+      }
+      ErrorAtCurrent("expected ';' or '}' after expression");
+      return nullptr;
+    }
+
+    trailing_expression = expression;
+    break;
+  }
+
+  if (!Match(TokenType::kRightBrace)) {
+    ErrorAtCurrent("expected '}' after block");
+    return nullptr;
+  }
+
+  return ast_.CreateBlockExpression(body, trailing_expression,
+                                    MergeSpans(opening_span, previous_.span));
+}
+
 Expression* Parser::ParseUnary() {
   const TokenType operator_type{previous_.type};
   const SourceSpan operator_span{previous_.span};
@@ -453,6 +509,11 @@ Statement* Parser::ParseStatement() {
 
   if (expression == nullptr) {
     return nullptr;
+  }
+
+  if (expression->kind == ExpressionKind::kBlock &&
+      !Check(TokenType::kSemicolon)) {
+    return ast_.CreateExpressionStatement(expression, expression->span);
   }
 
   if (!Match(TokenType::kSemicolon)) {

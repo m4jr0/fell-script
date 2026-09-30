@@ -16,6 +16,8 @@ enum class IrOpcode {
   kConvert,
   kLoadGlobal,
   kStoreGlobal,
+  kLoadLocal,
+  kStoreLocal,
 
   kNegate,
   kLogicalNot,
@@ -37,6 +39,7 @@ enum class IrOpcode {
 
 using StringConstantId = u32;
 using IrGlobalId = u32;
+using IrLocalId = u32;
 
 struct IrConstant {
   IrValueId destination;
@@ -58,6 +61,11 @@ struct IrConvert {
 struct IrGlobal {
   IrValueId value;
   IrGlobalId global;
+};
+
+struct IrLocal {
+  IrValueId value;
+  IrLocalId local;
 };
 
 struct IrUnary {
@@ -82,6 +90,7 @@ struct IrInstruction {
     IrConstant constant;
     IrConvert convert;
     IrGlobal global;
+    IrLocal local;
     IrUnary unary;
     IrBinary binary;
     IrReturn return_;
@@ -97,6 +106,7 @@ struct IrProgram {
   Vector<IrValue> values;
   Vector<String> string_constants;
   u32 global_count{0};
+  u32 local_count{0};
 };
 
 const IrValue& GetIrValue(const IrProgram& program, IrValueId id);

@@ -9,32 +9,19 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
                            bool return_last_expression) {
   IrProgram program{};
   program.global_count = semantics.global_count();
+  program.local_count = semantics.local_count();
   IrValueId last_value{};
   bool has_value{false};
 
   for (const Statement* statement : unit.statements) {
-    switch (statement->kind) {
-      case StatementKind::kExpression:
-        last_value = BuildExpression(*statement->expression.expression,
-                                     semantics, program);
-        has_value = true;
-        break;
-
-      case StatementKind::kVariableDeclaration: {
-        const auto& declaration{statement->variable_declaration};
-        IrValueId value{
-            BuildExpression(*declaration.initializer, semantics, program)};
-
-        const auto& statement_semantics{semantics.Get(*statement)};
-        value = ConvertIfNeeded(value, statement_semantics.type, program);
-        program.instructions.push_back({
-            .opcode = IrOpcode::kStoreGlobal,
-            .global = {.value = value, .global = statement_semantics.global_id},
-        });
-
-        has_value = false;
-        break;
-      }
+    if (statement->kind == StatementKind::kExpression) {
+      last_value = BuildExpression(*statement->expression.expression, semantics,
+                                   program);
+      has_value =
+          semantics.Get(*statement->expression.expression).type != Type::kUnit;
+    } else {
+      BuildStatement(*statement, semantics, program);
+      has_value = false;
     }
   }
 
@@ -46,6 +33,39 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
   }
 
   return program;
+}
+
+void IrBuilder::BuildStatement(const Statement& statement,
+                               const SemanticModel& semantics,
+                               IrProgram& program) {
+  switch (statement.kind) {
+    case StatementKind::kExpression:
+      BuildExpression(*statement.expression.expression, semantics, program);
+      return;
+
+    case StatementKind::kVariableDeclaration: {
+      const auto& declaration{statement.variable_declaration};
+      IrValueId value{
+          BuildExpression(*declaration.initializer, semantics, program)};
+      const auto& statement_semantics{semantics.Get(statement)};
+      value = ConvertIfNeeded(value, statement_semantics.type, program);
+      if (statement_semantics.binding.storage == VariableStorage::kGlobal) {
+        program.instructions.push_back({
+            .opcode = IrOpcode::kStoreGlobal,
+            .global = {.value = value,
+                       .global = statement_semantics.binding.slot},
+        });
+      } else {
+        program.instructions.push_back({
+            .opcode = IrOpcode::kStoreLocal,
+            .local = {.value = value,
+                      .local = statement_semantics.binding.slot},
+        });
+      }
+      return;
+    }
+  }
+  FELL_UNREACHABLE();
 }
 
 IrValueId IrBuilder::BuildExpression(const Expression& expression,
@@ -89,11 +109,19 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       const auto& expression_semantics{semantics.Get(expression)};
       const IrValueId destination{
           AllocateValue(program, expression_semantics.type)};
-      program.instructions.push_back({
-          .opcode = IrOpcode::kLoadGlobal,
-          .global = {.value = destination,
-                     .global = expression_semantics.global_id},
-      });
+      if (expression_semantics.binding.storage == VariableStorage::kGlobal) {
+        program.instructions.push_back({
+            .opcode = IrOpcode::kLoadGlobal,
+            .global = {.value = destination,
+                       .global = expression_semantics.binding.slot},
+        });
+      } else {
+        program.instructions.push_back({
+            .opcode = IrOpcode::kLoadLocal,
+            .local = {.value = destination,
+                      .local = expression_semantics.binding.slot},
+        });
+      }
       return destination;
     }
 
@@ -102,11 +130,31 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       IrValueId value{
           BuildExpression(*expression.assignment.value, semantics, program)};
       value = ConvertIfNeeded(value, expression_semantics.type, program);
-      program.instructions.push_back({
-          .opcode = IrOpcode::kStoreGlobal,
-          .global = {.value = value, .global = expression_semantics.global_id},
-      });
+      if (expression_semantics.binding.storage == VariableStorage::kGlobal) {
+        program.instructions.push_back({
+            .opcode = IrOpcode::kStoreGlobal,
+            .global = {.value = value,
+                       .global = expression_semantics.binding.slot},
+        });
+      } else {
+        program.instructions.push_back({
+            .opcode = IrOpcode::kStoreLocal,
+            .local = {.value = value,
+                      .local = expression_semantics.binding.slot},
+        });
+      }
       return value;
+    }
+
+    case ExpressionKind::kBlock: {
+      for (const Statement* statement : expression.block.body->statements) {
+        BuildStatement(*statement, semantics, program);
+      }
+      if (expression.block.trailing_expression == nullptr) {
+        return {};
+      }
+      return BuildExpression(*expression.block.trailing_expression, semantics,
+                             program);
     }
 
     case ExpressionKind::kUnary: {
@@ -280,6 +328,7 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
     case Type::kString:
     case Type::kF32:
     case Type::kF64:
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
       FELL_UNREACHABLE();
@@ -332,6 +381,7 @@ void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
     case Type::kU16:
     case Type::kU32:
     case Type::kU64:
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
       FELL_UNREACHABLE();

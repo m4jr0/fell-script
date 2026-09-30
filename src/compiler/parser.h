@@ -60,6 +60,7 @@ class Parser {
   Expression* ParseStringLiteral();
   Expression* ParseVariable();
   Expression* ParseGrouping();
+  Expression* ParseBlock();
   Expression* ParseUnary();
   Expression* ParseBinary(Expression* left);
 

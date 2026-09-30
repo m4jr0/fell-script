@@ -16,6 +16,7 @@ constexpr usize kHeaderSize{
     std::size(kMagic) + sizeof(u16) +  // Bytecode format version.
     sizeof(u16) +                      // Register count.
     sizeof(u32) +                      // Global count.
+    sizeof(u32) +                      // Local count.
     sizeof(u32) +                      // String count.
     sizeof(u32)                        // Instruction count.
 };
@@ -232,6 +233,7 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
   writer.WriteU16(kBytecodeFormatVersion);
   writer.WriteU16(module.register_count);
   writer.WriteU32(module.global_count);
+  writer.WriteU32(module.local_count);
   writer.WriteU32(static_cast<u32>(module.string_constants.size()));
   writer.WriteU32(static_cast<u32>(module.instructions.size()));
 
@@ -256,6 +258,10 @@ Vector<u8> SerializeBytecode(const BytecodeModule& module) {
                instruction.opcode == Opcode::kStoreGlobal) {
       writer.WriteU16(instruction.global.value);
       writer.WriteU32(instruction.global.global);
+    } else if (instruction.opcode == Opcode::kLoadLocal ||
+               instruction.opcode == Opcode::kStoreLocal) {
+      writer.WriteU16(instruction.local.value);
+      writer.WriteU32(instruction.local.local);
     } else if (IsConvertOpcode(instruction.opcode)) {
       writer.WriteU16(instruction.convert.destination);
       writer.WriteU16(instruction.convert.source);
@@ -300,6 +306,7 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
       .string_constants = {},
       .register_count = 0,
       .global_count = 0,
+      .local_count = 0,
   };
 
   if (!reader.ReadU16(module.register_count) ||
@@ -307,7 +314,8 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
     return {.module = {}, .error = "invalid Fell register count"};
   }
 
-  if (!reader.ReadU32(module.global_count)) {
+  if (!reader.ReadU32(module.global_count) ||
+      !reader.ReadU32(module.local_count)) {
     return {.module = {}, .error = "truncated Fell bytecode header"};
   }
 
@@ -367,7 +375,17 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
         return {.module = {}, .error = "invalid global instruction"};
       }
       module.instructions.push_back({.opcode = opcode, .global = global});
-    } else     if (opcode == Opcode::kLoadString) {
+    } else if (opcode == Opcode::kLoadLocal || opcode == Opcode::kStoreLocal) {
+      LocalInstruction local{};
+      if (!reader.ReadU16(local.value) || !reader.ReadU32(local.local)) {
+        return {.module = {}, .error = "truncated local instruction"};
+      }
+      if (!IsValidRegister(local.value, module) ||
+          local.local >= module.local_count) {
+        return {.module = {}, .error = "invalid local instruction"};
+      }
+      module.instructions.push_back({.opcode = opcode, .local = local});
+    } else if (opcode == Opcode::kLoadString) {
       LoadStringInstruction load{};
       if (!reader.ReadU16(load.destination) || !reader.ReadU32(load.constant)) {
         return {.module = {}, .error = "truncated string load instruction"};

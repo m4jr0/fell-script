@@ -11,6 +11,8 @@ enum class Opcode : u8 {
   kLoadString,
   kLoadGlobal,
   kStoreGlobal,
+  kLoadLocal,
+  kStoreLocal,
 
   kConvertS8ToS16,
   kConvertS8ToS32,
@@ -172,6 +174,7 @@ enum class Opcode : u8 {
 using RegisterId = u16;
 using StringConstantId = u32;
 using GlobalId = u32;
+using LocalId = u32;
 
 inline constexpr u32 kMaxRegisterCount{256};
 
@@ -188,6 +191,11 @@ struct LoadStringInstruction {
 struct GlobalInstruction {
   RegisterId value;
   GlobalId global;
+};
+
+struct LocalInstruction {
+  RegisterId value;
+  LocalId local;
 };
 
 struct ConvertInstruction {
@@ -218,6 +226,7 @@ struct Instruction {
     LoadImmediateInstruction load_immediate;
     LoadStringInstruction load_string;
     GlobalInstruction global;
+    LocalInstruction local;
     ConvertInstruction convert;
     UnaryInstruction unary;
     BinaryInstruction binary;
@@ -230,6 +239,7 @@ struct BytecodeModule {
   Vector<String> string_constants;
   u16 register_count{0};
   u32 global_count{0};
+  u32 local_count{0};
 };
 
 }  // namespace fell

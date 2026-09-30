@@ -20,6 +20,8 @@ enum class TokenType {
 
   kLeftParen,
   kRightParen,
+  kLeftBrace,
+  kRightBrace,
 
   kStar,
   kSlash,

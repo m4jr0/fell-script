@@ -16,6 +16,7 @@ class Vm {
   ValueData registers_[kMaxRegisterCount]{};
   Vector<UniquePtr<RuntimeString>> strings_;
   Vector<ValueData> globals_;
+  Vector<ValueData> locals_;
 };
 
 }  // namespace fell

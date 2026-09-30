@@ -26,6 +26,10 @@ StringView ToString(TokenType type) {
       return "left_paren";
     case TokenType::kRightParen:
       return "right_paren";
+    case TokenType::kLeftBrace:
+      return "left_brace";
+    case TokenType::kRightBrace:
+      return "right_brace";
     case TokenType::kStar:
       return "star";
     case TokenType::kSlash:

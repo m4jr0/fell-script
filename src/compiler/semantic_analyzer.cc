@@ -49,13 +49,41 @@ const SemanticAnalyzer::Symbol* SemanticAnalyzer::FindSymbol(
   return nullptr;
 }
 
+const SemanticAnalyzer::Symbol* SemanticAnalyzer::FindSymbolInCurrentScope(
+    StringView name) const {
+  for (auto iterator{symbols_.rbegin()}; iterator != symbols_.rend();
+       ++iterator) {
+    if (iterator->scope_depth < scope_depth_) {
+      break;
+    }
+    if (iterator->name == name) {
+      return &*iterator;
+    }
+  }
+  return nullptr;
+}
+
+void SemanticAnalyzer::BeginScope() { ++scope_depth_; }
+
+void SemanticAnalyzer::EndScope() {
+  FELL_ASSERT(scope_depth_ > 0);
+  while (!symbols_.empty() && symbols_.back().scope_depth == scope_depth_) {
+    symbols_.pop_back();
+  }
+  --scope_depth_;
+}
+
 SemanticResult SemanticAnalyzer::Analyze(const CompilationUnit& unit) {
   symbols_.clear();
+  scope_depth_ = 0;
+  next_global_id_ = 0;
+  next_local_id_ = 0;
   SemanticResult result{};
   for (const Statement* statement : unit.statements) {
     AnalyzeStatement(*statement, result);
   }
-  result.model.global_count_ = static_cast<u32>(symbols_.size());
+  result.model.global_count_ = next_global_id_;
+  result.model.local_count_ = next_local_id_;
   return result;
 }
 
@@ -147,11 +175,14 @@ void SemanticAnalyzer::AnalyzeStatement(const Statement& statement,
   switch (statement.kind) {
     case StatementKind::kExpression:
       AnalyzeExpression(*statement.expression.expression, result);
+      result.model.Set(
+          statement,
+          {.type = result.model.Get(*statement.expression.expression).type});
       return;
 
     case StatementKind::kVariableDeclaration: {
       const auto& declaration{statement.variable_declaration};
-      if (FindSymbol(declaration.name) != nullptr) {
+      if (FindSymbolInCurrentScope(declaration.name) != nullptr) {
         result.model.Set(statement, {.type = Type::kError});
         result.diagnostics.push_back({
             .severity = DiagnosticSeverity::kError,
@@ -172,6 +203,15 @@ void SemanticAnalyzer::AnalyzeStatement(const Statement& statement,
         result.model.Set(statement, {.type = Type::kError});
         return;
       }
+      if (initializer_type == Type::kUnit) {
+        result.model.Set(statement, {.type = Type::kError});
+        result.diagnostics.push_back({
+            .severity = DiagnosticSeverity::kError,
+            .message = "variable initializer must produce a value",
+            .span = statement.span,
+        });
+        return;
+      }
 
       Type type{initializer_type};
       if (declaration.explicit_type != Type::kInvalid) {
@@ -190,13 +230,22 @@ void SemanticAnalyzer::AnalyzeStatement(const Statement& statement,
         }
       }
 
-      FELL_ASSERT(symbols_.size() < kMaxValue<u32>);
-      const GlobalId id{static_cast<GlobalId>(symbols_.size())};
+      VariableBinding binding{};
+      if (scope_depth_ == 0) {
+        FELL_ASSERT(next_global_id_ < kMaxValue<u32>);
+        binding = {.storage = VariableStorage::kGlobal,
+                   .slot = next_global_id_++};
+      } else {
+        FELL_ASSERT(next_local_id_ < kMaxValue<u32>);
+        binding = {.storage = VariableStorage::kLocal,
+                   .slot = next_local_id_++};
+      }
       symbols_.push_back({.name = declaration.name,
                           .type = type,
-                          .id = id,
+                          .binding = binding,
+                          .scope_depth = scope_depth_,
                           .is_mutable = declaration.is_mutable});
-      result.model.Set(statement, {.type = type, .global_id = id});
+      result.model.Set(statement, {.type = type, .binding = binding});
       return;
     }
   }
@@ -256,7 +305,7 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
         return;
       }
       result.model.Set(expression,
-                       {.type = symbol->type, .global_id = symbol->id});
+                       {.type = symbol->type, .binding = symbol->binding});
       return;
     }
 
@@ -302,7 +351,28 @@ void SemanticAnalyzer::AnalyzeExpression(const Expression& expression,
       }
       result.model.Set(expression, {.type = symbol->type,
                                     .operand_type = symbol->type,
-                                    .global_id = symbol->id});
+                                    .binding = symbol->binding});
+      return;
+    }
+
+    case ExpressionKind::kBlock: {
+      BeginScope();
+      bool has_error{false};
+      for (const Statement* statement : expression.block.body->statements) {
+        AnalyzeStatement(*statement, result);
+        if (result.model.Get(*statement).type == Type::kError) {
+          has_error = true;
+        }
+      }
+
+      Type type{Type::kUnit};
+      if (expression.block.trailing_expression != nullptr) {
+        AnalyzeExpression(*expression.block.trailing_expression, result);
+        type = result.model.Get(*expression.block.trailing_expression).type;
+        has_error = has_error || type == Type::kError;
+      }
+      EndScope();
+      result.model.Set(expression, {.type = has_error ? Type::kError : type});
       return;
     }
 

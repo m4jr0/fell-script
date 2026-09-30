@@ -329,6 +329,7 @@ ValueData NotEqualBool(ValueData left, ValueData right) {
 std::optional<Value> Vm::Execute(const BytecodeModule& module) {
   FELL_ASSERT(module.register_count <= kMaxRegisterCount);
   globals_.assign(module.global_count, ValueData{});
+  locals_.assign(module.local_count, ValueData{});
 
   auto get_register = [&](RegisterId id) -> ValueData& {
     FELL_ASSERT(id < module.register_count);
@@ -381,6 +382,18 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         FELL_ASSERT(instruction.global.global < globals_.size());
         globals_[instruction.global.global] =
             get_register(instruction.global.value);
+        break;
+
+      case Opcode::kLoadLocal:
+        FELL_ASSERT(instruction.local.local < locals_.size());
+        get_register(instruction.local.value) =
+            locals_[instruction.local.local];
+        break;
+
+      case Opcode::kStoreLocal:
+        FELL_ASSERT(instruction.local.local < locals_.size());
+        locals_[instruction.local.local] =
+            get_register(instruction.local.value);
         break;
 
       case Opcode::kLoadImmediate:

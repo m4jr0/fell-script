@@ -11,6 +11,8 @@ class IrBuilder {
                   bool return_last_expression = false);
 
  private:
+  void BuildStatement(const Statement& statement,
+                      const SemanticModel& semantics, IrProgram& program);
   IrValueId BuildExpression(const Expression& expression,
                             const SemanticModel& semantics, IrProgram& program);
 

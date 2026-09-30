@@ -128,6 +128,30 @@ Expression* Ast::CreateAssignmentExpression(StringView name, Expression* value,
   return result;
 }
 
+CompilationUnit* Ast::CreateCompilationUnit() {
+  auto unit{MakeUnique<CompilationUnit>()};
+  auto* result{unit.get()};
+  compilation_units_.push_back(std::move(unit));
+  return result;
+}
+
+Expression* Ast::CreateBlockExpression(CompilationUnit* body,
+                                       Expression* trailing_expression,
+                                       SourceSpan span) {
+  FELL_ASSERT(body != nullptr);
+  FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
+  const ExpressionId id{.value = static_cast<u32>(expressions_.size())};
+  auto expression{MakeUnique<Expression>(Expression{
+      .id = id,
+      .kind = ExpressionKind::kBlock,
+      .span = span,
+      .block = {.body = body, .trailing_expression = trailing_expression},
+  })};
+  auto* result{expression.get()};
+  expressions_.push_back(std::move(expression));
+  return result;
+}
+
 Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand,
                                        SourceSpan span) {
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);

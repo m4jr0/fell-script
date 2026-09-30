@@ -19,6 +19,10 @@ StringView ToString(Opcode opcode) {
       return "load_global";
     case Opcode::kStoreGlobal:
       return "store_global";
+    case Opcode::kLoadLocal:
+      return "load_local";
+    case Opcode::kStoreLocal:
+      return "store_local";
     case Opcode::kConvertS8ToS16:
       return "convert_s8_to_s16";
     case Opcode::kConvertS8ToS32:
@@ -337,6 +341,16 @@ String DumpBytecode(const BytecodeModule& module) {
       case Opcode::kStoreGlobal:
         output << " #" << instruction.global.global << ", r"
                << instruction.global.value;
+        break;
+
+      case Opcode::kLoadLocal:
+        output << " r" << instruction.local.value << ", #"
+               << instruction.local.local;
+        break;
+
+      case Opcode::kStoreLocal:
+        output << " #" << instruction.local.local << ", r"
+               << instruction.local.value;
         break;
 
       case Opcode::kConvertS8ToS16:

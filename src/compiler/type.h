@@ -8,6 +8,7 @@ namespace fell {
 enum class Type {
   kInvalid,
   kError,
+  kUnit,
 
   kBool,
 

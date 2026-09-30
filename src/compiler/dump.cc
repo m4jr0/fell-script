@@ -11,6 +11,8 @@
 namespace fell {
 namespace {
 
+constexpr usize kIndentSize{2};
+
 StringView ToString(UnaryOperator op) {
   switch (op) {
     case UnaryOperator::kNegate:
@@ -59,6 +61,10 @@ StringView ToString(IrOpcode opcode) {
       return "load_global";
     case IrOpcode::kStoreGlobal:
       return "store_global";
+    case IrOpcode::kLoadLocal:
+      return "load_local";
+    case IrOpcode::kStoreLocal:
+      return "store_local";
     case IrOpcode::kNegate:
       return "negate";
     case IrOpcode::kLogicalNot:
@@ -90,16 +96,54 @@ StringView ToString(IrOpcode opcode) {
   FELL_UNREACHABLE();
 }
 
+void WriteIndent(std::ostringstream& output, usize depth) {
+  output << String(depth * kIndentSize, ' ');
+}
+
 void DumpExpression(const Expression& expression, std::ostringstream& output,
-                    StringView indent) {
+                    usize depth);
+
+void DumpStatement(const Statement& statement, std::ostringstream& output,
+                   usize depth) {
+  switch (statement.kind) {
+    case StatementKind::kExpression:
+      WriteIndent(output, depth);
+      output << "ExpressionStatement\n";
+      DumpExpression(*statement.expression.expression, output, depth + 1);
+      return;
+
+    case StatementKind::kVariableDeclaration: {
+      const auto& declaration{statement.variable_declaration};
+
+      WriteIndent(output, depth);
+      output << "VariableDeclaration " << (declaration.is_mutable ? "mut " : "")
+             << declaration.name;
+
+      if (declaration.explicit_type != Type::kInvalid) {
+        output << ": " << ToString(declaration.explicit_type);
+      }
+
+      output << '\n';
+      DumpExpression(*declaration.initializer, output, depth + 1);
+      return;
+    }
+  }
+
+  FELL_UNREACHABLE();
+}
+
+void DumpExpression(const Expression& expression, std::ostringstream& output,
+                    usize depth) {
   switch (expression.kind) {
     case ExpressionKind::kBooleanLiteral:
-      output << indent << "BooleanLiteral "
+      WriteIndent(output, depth);
+      output << "BooleanLiteral "
              << (expression.boolean_literal.value ? "true" : "false") << '\n';
       return;
 
     case ExpressionKind::kIntegerLiteral:
-      output << indent << "IntegerLiteral " << expression.integer_literal.value;
+      WriteIndent(output, depth);
+      output << "IntegerLiteral " << expression.integer_literal.value;
       if (expression.integer_literal.explicit_type != Type::kInvalid) {
         output << " [" << ToString(expression.integer_literal.explicit_type)
                << "]";
@@ -108,7 +152,8 @@ void DumpExpression(const Expression& expression, std::ostringstream& output,
       return;
 
     case ExpressionKind::kFloatLiteral:
-      output << indent << "FloatLiteral " << expression.float_literal.value;
+      WriteIndent(output, depth);
+      output << "FloatLiteral " << expression.float_literal.value;
       if (expression.float_literal.explicit_type != Type::kInvalid) {
         output << " [" << ToString(expression.float_literal.explicit_type)
                << "]";
@@ -117,33 +162,48 @@ void DumpExpression(const Expression& expression, std::ostringstream& output,
       return;
 
     case ExpressionKind::kStringLiteral:
-      output << indent << "StringLiteral \"" << expression.string_literal.value
-             << "\"\n";
+      WriteIndent(output, depth);
+      output << "StringLiteral \"" << expression.string_literal.value << "\"\n";
       return;
 
     case ExpressionKind::kVariable:
-      output << indent << "VariableExpression " << expression.variable.name
-             << '\n';
+      WriteIndent(output, depth);
+      output << "VariableExpression " << expression.variable.name << '\n';
       return;
 
     case ExpressionKind::kAssignment:
-      output << indent << "AssignmentExpression " << expression.assignment.name
-             << '\n';
-      DumpExpression(*expression.assignment.value, output,
-                     String{indent} + "  ");
+      WriteIndent(output, depth);
+      output << "AssignmentExpression " << expression.assignment.name << '\n';
+      DumpExpression(*expression.assignment.value, output, depth + 1);
+      return;
+
+    case ExpressionKind::kBlock:
+      WriteIndent(output, depth);
+      output << "BlockExpression\n";
+
+      for (const Statement* statement : expression.block.body->statements) {
+        DumpStatement(*statement, output, depth + 1);
+      }
+
+      if (expression.block.trailing_expression != nullptr) {
+        WriteIndent(output, depth + 1);
+        output << "TrailingExpression\n";
+        DumpExpression(*expression.block.trailing_expression, output,
+                       depth + 2);
+      }
       return;
 
     case ExpressionKind::kUnary:
-      output << indent << "UnaryExpression (" << ToString(expression.unary.op)
-             << ")\n";
-      DumpExpression(*expression.unary.operand, output, String{indent} + "  ");
+      WriteIndent(output, depth);
+      output << "UnaryExpression (" << ToString(expression.unary.op) << ")\n";
+      DumpExpression(*expression.unary.operand, output, depth + 1);
       return;
 
     case ExpressionKind::kBinary:
-      output << indent << "BinaryExpression (" << ToString(expression.binary.op)
-             << ")\n";
-      DumpExpression(*expression.binary.left, output, String{indent} + "  ");
-      DumpExpression(*expression.binary.right, output, String{indent} + "  ");
+      WriteIndent(output, depth);
+      output << "BinaryExpression (" << ToString(expression.binary.op) << ")\n";
+      DumpExpression(*expression.binary.left, output, depth + 1);
+      DumpExpression(*expression.binary.right, output, depth + 1);
       return;
   }
 
@@ -173,23 +233,7 @@ String DumpAst(const CompilationUnit& unit) {
   output << "CompilationUnit\n";
 
   for (const Statement* statement : unit.statements) {
-    switch (statement->kind) {
-      case StatementKind::kExpression:
-        output << "  ExpressionStatement\n";
-        DumpExpression(*statement->expression.expression, output, "    ");
-        break;
-      case StatementKind::kVariableDeclaration: {
-        const auto& declaration{statement->variable_declaration};
-        output << "  VariableDeclaration "
-               << (declaration.is_mutable ? "mut " : "") << declaration.name;
-        if (declaration.explicit_type != Type::kInvalid) {
-          output << ": " << ToString(declaration.explicit_type);
-        }
-        output << '\n';
-        DumpExpression(*declaration.initializer, output, "    ");
-        break;
-      }
-    }
+    DumpStatement(*statement, output, 1);
   }
 
   return output.str();
@@ -247,6 +291,7 @@ String DumpIr(const IrProgram& program) {
                 << "\"";
             break;
 
+          case Type::kUnit:
           case Type::kInvalid:
           case Type::kError:
             FELL_UNREACHABLE();
@@ -264,6 +309,16 @@ String DumpIr(const IrProgram& program) {
       case IrOpcode::kStoreGlobal:
         output << "  store_global #" << instruction.global.global << ", %"
                << instruction.global.value.value << '\n';
+        break;
+
+      case IrOpcode::kLoadLocal:
+        output << "  %" << instruction.local.value.value << " = load_local #"
+               << instruction.local.local << '\n';
+        break;
+
+      case IrOpcode::kStoreLocal:
+        output << "  store_local #" << instruction.local.local << ", %"
+               << instruction.local.value.value << '\n';
         break;
 
       case IrOpcode::kConvert: {

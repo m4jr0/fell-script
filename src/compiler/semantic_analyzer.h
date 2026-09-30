@@ -6,17 +6,25 @@
 
 namespace fell {
 
-using GlobalId = u32;
+enum class VariableStorage : u8 {
+  kGlobal,
+  kLocal,
+};
+
+struct VariableBinding {
+  VariableStorage storage{VariableStorage::kGlobal};
+  u32 slot{0};
+};
 
 struct ExpressionSemantics {
   Type type{Type::kInvalid};
   Type operand_type{Type::kInvalid};
-  GlobalId global_id{0};
+  VariableBinding binding{};
 };
 
 struct StatementSemantics {
   Type type{Type::kInvalid};
-  GlobalId global_id{0};
+  VariableBinding binding{};
 };
 
 class SemanticModel {
@@ -25,6 +33,7 @@ class SemanticModel {
       const Expression& expression) const;
   [[nodiscard]] const StatementSemantics& Get(const Statement& statement) const;
   [[nodiscard]] u32 global_count() const { return global_count_; }
+  [[nodiscard]] u32 local_count() const { return local_count_; }
 
  private:
   friend class SemanticAnalyzer;
@@ -35,6 +44,7 @@ class SemanticModel {
   Vector<ExpressionSemantics> expressions_;
   Vector<StatementSemantics> statements_;
   u32 global_count_{0};
+  u32 local_count_{0};
 };
 
 struct SemanticResult {
@@ -50,7 +60,8 @@ class SemanticAnalyzer {
   struct Symbol {
     StringView name;
     Type type;
-    GlobalId id;
+    VariableBinding binding;
+    u32 scope_depth;
     bool is_mutable;
   };
 
@@ -63,10 +74,16 @@ class SemanticAnalyzer {
                                             SemanticResult& result);
 
   const Symbol* FindSymbol(StringView name) const;
+  const Symbol* FindSymbolInCurrentScope(StringView name) const;
+  void BeginScope();
+  void EndScope();
   void AnalyzeStatement(const Statement& statement, SemanticResult& result);
   void AnalyzeExpression(const Expression& expression, SemanticResult& result);
 
   Vector<Symbol> symbols_;
+  u32 scope_depth_{0};
+  u32 next_global_id_{0};
+  u32 next_local_id_{0};
 };
 
 }  // namespace fell

@@ -39,11 +39,13 @@ enum class ExpressionKind {
   kStringLiteral,
   kVariable,
   kAssignment,
+  kBlock,
   kUnary,
   kBinary,
 };
 
 struct Expression;
+struct CompilationUnit;
 
 struct BooleanLiteralExpression {
   bool value;
@@ -74,6 +76,11 @@ struct AssignmentExpression {
   Expression* value;
 };
 
+struct BlockExpression {
+  CompilationUnit* body;
+  Expression* trailing_expression;
+};
+
 struct UnaryExpression {
   UnaryOperator op;
   Expression* operand;
@@ -97,6 +104,7 @@ struct Expression {
     StringLiteralExpression string_literal;
     VariableExpression variable;
     AssignmentExpression assignment;
+    BlockExpression block;
     UnaryExpression unary;
     BinaryExpression binary;
   };
@@ -148,6 +156,10 @@ class Ast {
   Expression* CreateVariableExpression(StringView name, SourceSpan span);
   Expression* CreateAssignmentExpression(StringView name, Expression* value,
                                          SourceSpan span);
+  Expression* CreateBlockExpression(CompilationUnit* body,
+                                    Expression* trailing_expression,
+                                    SourceSpan span);
+  CompilationUnit* CreateCompilationUnit();
 
   Expression* CreateUnaryExpression(UnaryOperator op, Expression* operand,
                                     SourceSpan span);
@@ -168,6 +180,7 @@ class Ast {
 
   // TODO(m4jr0): Allocate AST nodes from an arena.
   Vector<UniquePtr<Statement>> statements_;
+  Vector<UniquePtr<CompilationUnit>> compilation_units_;
 };
 
 }  // namespace fell

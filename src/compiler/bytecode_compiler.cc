@@ -38,6 +38,7 @@ ValueType ToValueType(Type type) {
     case Type::kString:
       return ValueType::kString;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
       FELL_UNREACHABLE();
@@ -153,6 +154,7 @@ Opcode GetConvertOpcode(Type source, Type destination) {
       FELL_ASSERT(destination == Type::kF64);
       return Opcode::kConvertF32ToF64;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
@@ -189,6 +191,7 @@ Opcode GetMultiplyOpcode(Type type) {
     case Type::kF64:
       return Opcode::kMultiplyF64;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
@@ -222,6 +225,7 @@ Opcode GetDivideOpcode(Type type) {
     case Type::kF64:
       return Opcode::kDivideF64;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
@@ -257,6 +261,7 @@ Opcode GetAddOpcode(Type type) {
     case Type::kString:
       return Opcode::kAddString;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
@@ -289,6 +294,7 @@ Opcode GetSubtractOpcode(Type type) {
     case Type::kF64:
       return Opcode::kSubtractF64;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
     case Type::kBool:
@@ -496,6 +502,7 @@ Value MakeConstantValue(const IrProgram& ir, const IrConstant& constant) {
       value.data.f64_value = constant.f64_value;
       break;
 
+    case Type::kUnit:
     case Type::kInvalid:
     case Type::kError:
     case Type::kString:
@@ -564,6 +571,7 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
       .string_constants = ir.string_constants,
       .register_count = static_cast<u16>(ir.values.size()),
       .global_count = ir.global_count,
+      .local_count = ir.local_count,
   };
 
   for (const IrInstruction& instruction : ir.instructions) {
@@ -607,6 +615,22 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
             .opcode = Opcode::kStoreGlobal,
             .global = {.value = ToRegister(instruction.global.value),
                        .global = instruction.global.global},
+        });
+        break;
+
+      case IrOpcode::kLoadLocal:
+        module.instructions.push_back({
+            .opcode = Opcode::kLoadLocal,
+            .local = {.value = ToRegister(instruction.local.value),
+                      .local = instruction.local.local},
+        });
+        break;
+
+      case IrOpcode::kStoreLocal:
+        module.instructions.push_back({
+            .opcode = Opcode::kStoreLocal,
+            .local = {.value = ToRegister(instruction.local.value),
+                      .local = instruction.local.local},
         });
         break;
 
