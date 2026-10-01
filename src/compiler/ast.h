@@ -34,8 +34,10 @@ enum class BinaryOperator {
   kGreaterEqual,
 };
 
+inline constexpr u32 kInvalidExpressionId{static_cast<u32>(-1)};
+
 struct ExpressionId {
-  u32 value;
+  u32 value{kInvalidExpressionId};
 };
 
 enum class ExpressionKind {
@@ -59,7 +61,7 @@ struct Statement;
 struct CompilationUnit;
 
 struct BooleanLiteralExpression {
-  bool value;
+  bool value{false};
 };
 
 // No negatives.
@@ -93,34 +95,34 @@ struct CallData {
 };
 
 struct CallExpression {
-  CallData* data;
+  CallData* data{nullptr};
 };
 
 struct ConditionalExpression {
-  Expression* condition;
-  Expression* then_expression;
-  Expression* else_expression;
+  Expression* condition{nullptr};
+  Expression* then_expression{nullptr};
+  Expression* else_expression{nullptr};
 };
 
 struct BlockExpression {
-  CompilationUnit* body;
-  Expression* trailing_expression;
+  CompilationUnit* body{nullptr};
+  Expression* trailing_expression{nullptr};
 };
 
 struct UnaryExpression {
-  UnaryOperator op;
-  Expression* operand;
+  UnaryOperator op{UnaryOperator::kInvalid};
+  Expression* operand{nullptr};
 };
 
 struct BinaryExpression {
-  Expression* left;
-  BinaryOperator op;
-  Expression* right;
+  Expression* left{nullptr};
+  BinaryOperator op{BinaryOperator::kInvalid};
+  Expression* right{nullptr};
 };
 
 struct Expression {
   ExpressionId id;
-  ExpressionKind kind;
+  ExpressionKind kind{ExpressionKind::kInvalid};
   SourceSpan span;
 
   union {
@@ -138,11 +140,15 @@ struct Expression {
   };
 };
 
+inline constexpr u32 kInvalidStatementId{static_cast<u32>(-1)};
+
 struct StatementId {
-  u32 value;
+  u32 value{kInvalidStatementId};
 };
 
 enum class StatementKind {
+  kInvalid,
+
   kExpression,
   kVariableDeclaration,
   kFunctionDeclaration,
@@ -158,71 +164,72 @@ enum class StatementKind {
 struct EmptyStatement {};
 
 struct ExpressionStatement {
-  Expression* expression;
+  Expression* expression{nullptr};
 };
 
 struct VariableDeclarationStatement {
   StringView name;
-  Type explicit_type;
-  Expression* initializer;
-  bool is_mutable;
+  Type explicit_type{Type::kInvalid};
+  Expression* initializer{nullptr};
+  bool is_mutable{false};
 };
 
 struct FunctionParameter {
   StringView name;
-  Type type;
+  Type type{Type::kInvalid};
 };
 
 struct FunctionData {
   StringView name;
   Vector<FunctionParameter> parameters;
-  Type return_type;
-  Expression* body;
+  Type return_type{Type::kInvalid};
+  Expression* body{nullptr};
 };
 
 struct FunctionDeclarationStatement {
-  FunctionData* data;
+  FunctionData* data{nullptr};
 };
+
 struct ReturnStatement {
-  Expression* value;
+  Expression* value{nullptr};
 };
 
 struct IfStatement {
-  Expression* condition;
-  Expression* then_block;
-  Expression* else_block;
+  Expression* condition{nullptr};
+  Expression* then_block{nullptr};
+  Expression* else_block{nullptr};
 };
 
 struct WhileStatement {
-  Expression* condition;
-  Expression* body;
+  Expression* condition{nullptr};
+  Expression* body{nullptr};
 };
 
 struct ForStatement {
-  Statement* initializer;
-  Expression* condition;
-  Expression* increment;
-  Expression* body;
+  Statement* initializer{nullptr};
+  Expression* condition{nullptr};
+  Expression* increment{nullptr};
+  Expression* body{nullptr};
 };
 
 struct SwitchCase {
-  Expression* value;
-  Expression* body;
+  Expression* value{nullptr};
+  Expression* body{nullptr};
 };
 
 struct SwitchData {
-  Expression* value;
+  Expression* value{nullptr};
   Vector<SwitchCase> cases;
-  Expression* default_body;
+  Expression* default_body{nullptr};
 };
 
 struct SwitchStatement {
-  SwitchData* data;
+  SwitchData* data{nullptr};
 };
 
 struct Statement {
   StatementId id;
-  StatementKind kind;
+  StatementKind kind{StatementKind::kInvalid};
   SourceSpan span;
 
   union {

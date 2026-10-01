@@ -1,126 +1,202 @@
+// Fell integration sample.
+// Successful language behavior belongs here. Invalid programs belong in
+// dedicated negative tests.
+
+print("Running Fell integration tests...");
+
+// Boolean values and logical operators.
+assert(!false);
+assert(true != false);
+
+// Every numeric type is accepted and survives a typed operation.
+let typed_s8 = 1s8 + 2s8;
+let typed_s16 = 1s16 + 2s16;
+let typed_s32 = 1s32 + 2s32;
+let typed_s64 = 1s64 + 2s64;
+let typed_u8 = 1u8 + 2u8;
+let typed_u16 = 1u16 + 2u16;
+let typed_u32 = 1u32 + 2u32;
+let typed_u64 = 1u64 + 2u64;
+let typed_f32 = 1.0f32 + 2.0f32;
+let typed_f64 = 1.0f64 + 2.0f64;
+assert(typed_f32 == 3.0f32);
+
+// Arithmetic, precedence, unary negation, and comparisons.
+assert(2 + 3 * 4 == 14);
+assert((2 + 3) * 4 == 20);
+assert(-10 + 3 == -7);
+
+// Contextual integer typing and lossless numeric conversion.
+let min_s8: s8 = -128;
+let contextual_u64: u64 = 42;
+let widened_s64: s64 = 42s32;
+let widened_f64: f64 = 42s32;
+assert(min_s8 == -128s8);
+
+// Strings.
+assert("Hello, " + "Fell" == "Hello, Fell");
+
+// Globals and mutation.
+let immutable_global = 42;
 let mut health = 100;
-let damage = 25;
+health = health - 25;
+assert(health == 75);
 
-print("health:");
-print(health);
-
-print("damage:");
-print(damage);
-
-health = health - damage;
-
-print("health after damage:");
-print(health);
-
-print("health == 75:");
-print(health == 75);
-
-let mut name: string = "Geralt";
-
-print("name:");
-print(name);
-
-name = name + " of Rivia";
-
-print("name after concatenation:");
-print(name);
-
-print("name == Geralt of Rivia:");
-print(name == "Geralt of Rivia");
-
-let mut counter = 0;
-
-print("counter before while:");
-print(counter);
-
-while counter < 3 {
-  counter = counter + 1;
-
-  print("counter in while:");
-  print(counter);
+// Lexical scopes, locals, and shadowing.
+let shadowed = 10;
+{
+  let local = 20;
+  let shadowed = 30;
+  assert(local == 20);
+  assert(shadowed == 30);
 }
 
-if counter == 3 {
-  counter = counter + 10;
+assert(shadowed == 10);
+
+// Block expressions.
+let block_value = {
+  let a = 20;
+  let b = 22;
+  a + b
+};
+
+assert(block_value == 42);
+
+// If / else and conditional expressions.
+let mut branch_value = 0;
+
+if true {
+  branch_value = 42;
 } else {
-  counter = 0;
+  branch_value = 1;
 }
 
-print("counter after if:");
-print(counter);
+assert(branch_value == 42);
+assert((false ? 0 : 42) == 42);
 
-let is_large = counter > 10 && counter < 100;
+// Short-circuiting with observable side effects.
+let mut and_rhs_evaluated = false;
+let mut or_rhs_evaluated = false;
 
-print("is_large:");
-print(is_large);
+fn touch_and(): bool {
+  and_rhs_evaluated = true;
+  return true;
+}
 
-let fallback = false || is_large;
+fn touch_or(): bool {
+  or_rhs_evaluated = true;
+  return false;
+}
 
-print("fallback:");
-print(fallback);
+assert(and_rhs_evaluated == false);
+assert(or_rhs_evaluated == false);
 
-let selected = fallback ? counter : 0;
+// While, break, and continue.
+let mut while_sum = 0;
+let mut while_index = 0;
 
-print("selected:");
-print(selected);
+while while_index < 10 {
+  while_index = while_index + 1;
 
-switch selected {
-  case 0 {
-    counter = 1;
+  if while_index == 3 {
+    continue;
   }
-  case 13 {
-    counter = counter + 100;
+
+  if while_index == 8 {
+    break;
   }
-  default {
-    counter = 2;
+
+  while_sum = while_sum + while_index;
+}
+
+assert(while_sum == 25);
+
+// For loops, including omitted clauses.
+let mut for_sum = 0;
+
+for (let mut i = 0; i < 5; i = i + 1) {
+  for_sum = for_sum + i;
+}
+
+assert(for_sum == 10);
+
+let mut infinite_for_iterations = 0;
+
+for (;;) {
+  infinite_for_iterations = infinite_for_iterations + 1;
+
+  if infinite_for_iterations == 3 {
+    break;
   }
 }
 
-print("counter after switch:");
-print(counter);
+assert(infinite_for_iterations == 3);
 
+// Switch selection, default, and no implicit fallthrough.
+let mut switch_result = 0;
+
+switch 2 {
+  case 1 { switch_result = 10; }
+  case 2 { switch_result = 20; }
+  default { switch_result = 30; }
+}
+
+assert(switch_result == 20);
+
+switch 99 {
+  case 1 { switch_result = 10; }
+  default { switch_result = 30; }
+}
+
+assert(switch_result == 30);
+
+// Functions, nested calls, numeric argument conversion, and globals.
 fn add(a: s32, b: s32): s32 {
-  print("add a:");
-  print(a);
+  return a + b;
+}
 
-  print("add b:");
-  print(b);
+fn add_then_double(a: s32, b: s32): s32 {
+  return add(a, b) * 2;
+}
 
-  let result = a + b;
+fn widen_parameter(value: s64): s64 {
+  return value;
+}
 
-  print("add result:");
-  print(result);
+let global_for_function = 40;
 
-  return result;
+fn read_global(): s32 {
+  return global_for_function + 2;
+}
+
+assert(add_then_double(10, 11) == 42);
+assert(widen_parameter(42s32) == 42s64);
+assert(read_global() == 42);
+
+// Forward calls and recursion.
+fn call_forward(value: s32): s32 {
+  return forward_target(value);
+}
+
+fn forward_target(value: s32): s32 {
+  return value + 1;
 }
 
 fn factorial(n: s32): s32 {
-  print("factorial n:");
-  print(n);
-
   if n <= 1 {
-    print("factorial base case:");
-    print(1);
     return 1;
   }
 
-  let result = n * factorial(n - 1);
-
-  print("factorial result:");
-  print(result);
-
-  return result;
+  return n * factorial(n - 1);
 }
 
-let sum = add(20, 22);
+assert(call_forward(41) == 42);
+assert(factorial(5) == 120);
 
-print("sum:");
-print(sum);
-
-let factorial_result = factorial(5);
-
-print("factorial_result:");
-print(factorial_result);
-
-print("message:");
+// Native print values.
+print(true);
+print(42);
+print(42u64);
+print(3.5f64);
 print("Hello from Fell");
+print("All Fell integration tests passed!");

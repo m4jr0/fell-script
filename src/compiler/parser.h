@@ -23,6 +23,8 @@ class Parser {
 
  private:
   enum class Precedence {
+    kInvalid,
+
     kNone,
     kConditional,
     kLogicalOr,
@@ -39,16 +41,16 @@ class Parser {
   using InfixParseFunction = Expression* (Parser::*)(Expression*);
 
   struct ParseRule {
-    PrefixParseFunction prefix;
-    InfixParseFunction infix;
-    Precedence precedence;
+    PrefixParseFunction prefix{nullptr};
+    InfixParseFunction infix{nullptr};
+    Precedence precedence{Precedence::kInvalid};
   };
 
   static const ParseRule& GetRule(TokenType type);
 
   void Advance();
   bool Match(TokenType type);
-  bool Check(TokenType type) const;
+  [[nodiscard]] bool Check(TokenType type) const;
 
   void ErrorAt(const Token& token, StringView message);
   void ErrorAtCurrent(StringView message);
@@ -62,7 +64,7 @@ class Parser {
   Expression* ParseIntegerLiteral();
   Expression* ParseFloatLiteral();
   Expression* ParseStringLiteral();
-  Expression* ParseVariable();
+  Expression* ParseIdentifier();
   Expression* ParseGrouping();
   Expression* ParseCall(Expression* callee);
   Expression* ParseBlock();
@@ -80,6 +82,7 @@ class Parser {
   Statement* ParseBreakStatement();
   Statement* ParseContinueStatement();
   Statement* ParseSwitchStatement();
+
   Type ParseType();
 
   Token current_;

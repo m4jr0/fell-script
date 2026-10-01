@@ -4,14 +4,19 @@
 #include "core/string.h"
 #include "core/type.h"
 #include "core/vector.h"
+#include "runtime/native_function.h"
 
 namespace fell {
 
+inline constexpr u32 kInvalidIrValueId{static_cast<u32>(-1)};
+
 struct IrValueId {
-  u32 value;
+  u32 value{kInvalidIrValueId};
 };
 
 enum class IrOpcode {
+  kInvalid,
+
   kConstant,
   kConvert,
   kLoadGlobal,
@@ -43,76 +48,99 @@ enum class IrOpcode {
   kReturn,
 };
 
-using StringConstantId = u32;
+using IrStringConstantId = u32;
+inline constexpr IrStringConstantId kInvalidIrStringConstantId{
+    static_cast<IrStringConstantId>(-1)};
+
 using IrGlobalId = u32;
+inline constexpr IrGlobalId kInvalidIrGlobalId{static_cast<IrGlobalId>(-1)};
+
 using IrLocalId = u32;
+inline constexpr IrLocalId kInvalidIrLocalId{static_cast<IrLocalId>(-1)};
+
 using IrLabelId = u32;
+inline constexpr IrLabelId kInvalidIrLabelId{static_cast<IrLabelId>(-1)};
+
 using IrFunctionId = u32;
+inline constexpr IrFunctionId kInvalidIrFunctionId{
+    static_cast<IrFunctionId>(-1)};
 
 struct IrConstant {
-  IrValueId destination;
+  IrValueId destination{IrValueId{}};
 
   union {
-    bool bool_value;
+    bool bool_value{false};
     s64 s64_value;
     u64 u64_value;
     f64 f64_value;
-    StringConstantId string_value;
+    IrStringConstantId string_value;
   };
 };
 
 struct IrConvert {
-  IrValueId destination;
-  IrValueId source;
+  IrValueId destination{IrValueId{}};
+  IrValueId source{IrValueId{}};
 };
 
 struct IrGlobal {
-  IrValueId value;
-  IrGlobalId global;
+  IrValueId value{IrValueId{}};
+  IrGlobalId global{kInvalidIrGlobalId};
 };
 
 struct IrLocal {
-  IrValueId value;
-  IrLocalId local;
+  IrValueId value{IrValueId{}};
+  IrLocalId local{kInvalidIrLocalId};
 };
 
 struct IrMove {
-  IrValueId destination;
-  IrValueId source;
+  IrValueId destination{IrValueId{}};
+  IrValueId source{IrValueId{}};
 };
 
-struct IrLabel { IrLabelId label; };
-struct IrJump { IrLabelId target; };
-struct IrJumpIfFalse { IrValueId condition; IrLabelId target; };
-struct IrCall {
-  IrValueId destination;
-  IrFunctionId function;
-  u32 argument_offset;
-  u32 argument_count;
-  bool has_destination;
+struct IrLabel {
+  IrLabelId label{kInvalidIrLabelId};
 };
+
+struct IrJump {
+  IrLabelId target{kInvalidIrLabelId};
+};
+
+struct IrJumpIfFalse {
+  IrValueId condition{IrValueId{}};
+  IrLabelId target{kInvalidIrLabelId};
+};
+
+struct IrCall {
+  IrValueId destination{IrValueId{}};
+  IrFunctionId function{kInvalidIrFunctionId};
+  u32 argument_offset{0};
+  u32 argument_count{0};
+  bool has_destination{false};
+};
+
 struct IrCallNative {
-  IrValueId argument;
-  Type argument_type;
+  IrValueId argument{IrValueId{}};
+  Type argument_type{Type::kInvalid};
+  NativeFunctionId function{kInvalidNativeFunctionId};
 };
 
 struct IrUnary {
-  IrValueId destination;
-  IrValueId operand;
+  IrValueId destination{IrValueId{}};
+  IrValueId operand{IrValueId{}};
 };
 
 struct IrBinary {
-  IrValueId destination;
-  IrValueId left;
-  IrValueId right;
+  IrValueId destination{IrValueId{}};
+  IrValueId left{IrValueId{}};
+  IrValueId right{IrValueId{}};
 };
 
 struct IrReturn {
-  IrValueId value;
+  IrValueId value{IrValueId{}};
 };
 
 struct IrInstruction {
-  IrOpcode opcode;
+  IrOpcode opcode{IrOpcode::kInvalid};
 
   union {
     IrConstant constant;
@@ -132,14 +160,14 @@ struct IrInstruction {
 };
 
 struct IrValue {
-  Type type;
+  Type type{Type::kInvalid};
 };
 
 struct IrFunction {
   IrFunctionId id;
   IrLabelId entry;
   Vector<IrLocalId> parameter_local_slots;
-  Type return_type;
+  Type return_type{Type::kInvalid};
 };
 
 struct IrProgram {

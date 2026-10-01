@@ -1,9 +1,8 @@
 #include "runtime/vm.h"
 
 #include <iostream>
-#include <utility>
-
 #include <type_traits>
+#include <utility>
 
 #include "core/assert.h"
 
@@ -330,6 +329,7 @@ ValueData NotEqualBool(ValueData left, ValueData right) {
 }
 
 std::optional<Value> Vm::Execute(const BytecodeModule& module) {
+  succeeded_ = true;
   FELL_ASSERT(module.register_count <= kMaxRegisterCount);
   globals_.assign(module.global_count, ValueData{});
   frames_.clear();
@@ -377,9 +377,17 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
     break
 
   for (s64 ip{0}; ip < static_cast<s64>(module.instructions.size()); ++ip) {
-    if (frames_.size() == 1 && ip >= static_cast<s64>(module.main_instruction_count)) break;
+    if (frames_.size() == 1 &&
+        ip >= static_cast<s64>(module.main_instruction_count)) {
+      break;
+    }
+
     const Instruction& instruction{module.instructions[static_cast<u64>(ip)]};
+
     switch (instruction.opcode) {
+      case Opcode::kInvalid:
+        FELL_UNREACHABLE();
+
       case Opcode::kLoadGlobal:
         FELL_ASSERT(instruction.global.global < globals_.size());
         get_register(instruction.global.value) =
@@ -394,16 +402,19 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
 
       case Opcode::kLoadLocal:
         FELL_ASSERT(instruction.local.local < frames_.back().locals.size());
-        get_register(instruction.local.value) = frames_.back().locals[instruction.local.local];
+        get_register(instruction.local.value) =
+            frames_.back().locals[instruction.local.local];
         break;
 
       case Opcode::kStoreLocal:
         FELL_ASSERT(instruction.local.local < frames_.back().locals.size());
-        frames_.back().locals[instruction.local.local] = get_register(instruction.local.value);
+        frames_.back().locals[instruction.local.local] =
+            get_register(instruction.local.value);
         break;
 
       case Opcode::kMove:
-        get_register(instruction.move.destination) = get_register(instruction.move.source);
+        get_register(instruction.move.destination) =
+            get_register(instruction.move.source);
         break;
 
       case Opcode::kJump:
@@ -412,36 +423,70 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         break;
 
       case Opcode::kJumpIfFalse:
-        FELL_ASSERT(instruction.jump_if_false.target <= module.instructions.size());
+        FELL_ASSERT(instruction.jump_if_false.target <=
+                    module.instructions.size());
         if (!get_register(instruction.jump_if_false.condition).bool_value)
           ip = static_cast<s64>(instruction.jump_if_false.target) - 1;
         break;
 
       case Opcode::kCall: {
         FELL_ASSERT(instruction.call.function < module.functions.size());
-        const BytecodeFunction& function{module.functions[instruction.call.function]};
-        FELL_ASSERT(instruction.call.argument_count == function.parameter_local_slots.size());
+        const BytecodeFunction& function{
+            module.functions[instruction.call.function]};
+
+        FELL_ASSERT(instruction.call.argument_count ==
+                    function.parameter_local_slots.size());
         Vector<ValueData> arguments;
         arguments.reserve(instruction.call.argument_count);
+
         for (u32 index{0}; index < instruction.call.argument_count; ++index) {
-          const RegisterId source{module.call_arguments[instruction.call.argument_offset + index]};
+          const RegisterId source{
+              module.call_arguments[instruction.call.argument_offset + index]};
+
           arguments.push_back(get_register(source));
         }
+
         Frame frame{};
         frame.locals.assign(module.local_count, ValueData{});
         frame.return_ip = ip;
         frame.return_destination = instruction.call.destination;
-        for (u32 index{0}; index < instruction.call.argument_count; ++index)
-          frame.locals[function.parameter_local_slots[index]] = arguments[index];
+
+        for (u32 index{0}; index < instruction.call.argument_count; ++index) {
+          frame.locals[function.parameter_local_slots[index]] =
+              arguments[index];
+        }
+
         frames_.push_back(std::move(frame));
         ip = static_cast<s64>(function.entry) - 1;
         break;
       }
 
       case Opcode::kCallNative: {
-        FELL_ASSERT(instruction.call_native.function == 0);
-        const Value value{.type = instruction.call_native.type, .data = get_register(instruction.call_native.argument)};
-        std::cout << ToString(value) << '\n';
+        const Value value{
+            .type = instruction.call_native.type,
+            .data = get_register(instruction.call_native.argument),
+        };
+
+        switch (instruction.call_native.function) {
+          case kPrintNativeFunctionId:
+            std::cout << ToString(value) << '\n';
+            break;
+
+          case kAssertNativeFunctionId:
+            FELL_ASSERT(value.type == ValueType::kBool);
+
+            if (!value.data.bool_value) {
+              std::cerr << "assertion failed\n";
+              succeeded_ = false;
+              return std::nullopt;
+            }
+
+            break;
+
+          default:
+            FELL_UNREACHABLE();
+        }
+
         break;
       }
 
@@ -453,9 +498,11 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
       case Opcode::kLoadString: {
         FELL_ASSERT(instruction.load_string.constant <
                     module.string_constants.size());
+
         auto string{MakeUnique<RuntimeString>(RuntimeString{
             .value = module.string_constants[instruction.load_string.constant],
         })};
+
         RuntimeString* const value{string.get()};
         strings_.push_back(std::move(string));
         get_register(instruction.load_string.destination).string_value = value;
@@ -543,9 +590,11 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         RuntimeString* const right{
             get_register(instruction.binary.right).string_value};
         FELL_ASSERT(left != nullptr && right != nullptr);
+
         auto string{MakeUnique<RuntimeString>(RuntimeString{
             .value = left->value + right->value,
         })};
+
         RuntimeString* const value{string.get()};
         strings_.push_back(std::move(string));
         get_register(instruction.binary.destination).string_value = value;
@@ -586,6 +635,7 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         RuntimeString* const right{
             get_register(instruction.binary.right).string_value};
         FELL_ASSERT(left != nullptr && right != nullptr);
+
         get_register(instruction.binary.destination).bool_value =
             left->value == right->value;
         break;
@@ -614,6 +664,7 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         RuntimeString* const right{
             get_register(instruction.binary.right).string_value};
         FELL_ASSERT(left != nullptr && right != nullptr);
+
         get_register(instruction.binary.destination).bool_value =
             left->value != right->value;
         break;
@@ -667,6 +718,7 @@ std::optional<Value> Vm::Execute(const BytecodeModule& module) {
         const Value value{.type = instruction.return_.type,
                           .data = get_register(instruction.return_.source)};
         if (frames_.size() == 1) return value;
+
         const s64 return_ip{frames_.back().return_ip};
         const RegisterId destination{frames_.back().return_destination};
         frames_.pop_back();

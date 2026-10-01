@@ -110,8 +110,10 @@ ParseResult Parser::ParseReplInput(CompilationUnit& unit) {
         terminated ? MergeSpans(expression->span, previous_.span)
                    : expression->span,
     };
+
     unit.statements.push_back(
         ast_.CreateExpressionStatement(expression, statement_span));
+
     has_result = !terminated;
   }
 
@@ -144,7 +146,7 @@ const Parser::ParseRule& Parser::GetRule(TokenType type) {
     {.prefix = &Parser::ParseStringLiteral, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kIdentifier
-    {.prefix = &Parser::ParseVariable, .infix = nullptr, .precedence = Precedence::kNone},
+    {.prefix = &Parser::ParseIdentifier, .infix = nullptr, .precedence = Precedence::kNone},
 
     // kLet
     {.prefix = nullptr, .infix = nullptr, .precedence = Precedence::kNone},
@@ -451,7 +453,7 @@ Expression* Parser::ParseStringLiteral() {
       previous_.lexeme.substr(1, previous_.lexeme.size() - 2), previous_.span);
 }
 
-Expression* Parser::ParseVariable() {
+Expression* Parser::ParseIdentifier() {
   FELL_ASSERT(previous_.type == TokenType::kIdentifier);
   return ast_.CreateVariableExpression(previous_.lexeme, previous_.span);
 }
@@ -509,6 +511,7 @@ Expression* Parser::ParseBlock() {
       body->statements.push_back(declaration);
       continue;
     }
+
     if (Check(TokenType::kIf) || Check(TokenType::kWhile) ||
         Check(TokenType::kFor) || Check(TokenType::kBreak) ||
         Check(TokenType::kContinue) || Check(TokenType::kReturn) ||
@@ -536,6 +539,7 @@ Expression* Parser::ParseBlock() {
             ast_.CreateExpressionStatement(expression, expression->span));
         continue;
       }
+
       ErrorAtCurrent("expected ';' or '}' after expression");
       return nullptr;
     }
@@ -585,53 +589,35 @@ Expression* Parser::ParseConditional(Expression* condition) {
   if (then_expression == nullptr) {
     return nullptr;
   }
+
   if (!Match(TokenType::kColon)) {
     ErrorAtCurrent("expected ':' in conditional expression");
     return nullptr;
   }
+
   Expression* const else_expression{ParseExpression()};
   if (else_expression == nullptr) {
     return nullptr;
   }
+
   return ast_.CreateConditionalExpression(
       condition, then_expression, else_expression,
       MergeSpans(condition->span, else_expression->span));
 }
 
 Statement* Parser::ParseStatement() {
-  if (Match(TokenType::kLet)) {
-    return ParseVariableDeclaration();
-  }
-  if (Match(TokenType::kFn)) {
-    return ParseFunctionDeclaration();
-  }
-  if (Match(TokenType::kReturn)) {
-    return ParseReturnStatement();
-  }
-  if (Match(TokenType::kIf)) {
-    return ParseIfStatement();
-  }
-  if (Match(TokenType::kWhile)) {
-    return ParseWhileStatement();
-  }
-  if (Match(TokenType::kFor)) {
-    return ParseForStatement();
-  }
-  if (Match(TokenType::kBreak)) {
-    return ParseBreakStatement();
-  }
-  if (Match(TokenType::kContinue)) {
-    return ParseContinueStatement();
-  }
-  if (Match(TokenType::kSwitch)) {
-    return ParseSwitchStatement();
-  }
+  if (Match(TokenType::kLet)) return ParseVariableDeclaration();
+  if (Match(TokenType::kFn)) return ParseFunctionDeclaration();
+  if (Match(TokenType::kReturn)) return ParseReturnStatement();
+  if (Match(TokenType::kIf)) return ParseIfStatement();
+  if (Match(TokenType::kWhile)) return ParseWhileStatement();
+  if (Match(TokenType::kFor)) return ParseForStatement();
+  if (Match(TokenType::kBreak)) return ParseBreakStatement();
+  if (Match(TokenType::kContinue)) return ParseContinueStatement();
+  if (Match(TokenType::kSwitch)) return ParseSwitchStatement();
 
   Expression* const expression{ParseExpression()};
-
-  if (expression == nullptr) {
-    return nullptr;
-  }
+  if (expression == nullptr) return nullptr;
 
   if (expression->kind == ExpressionKind::kBlock &&
       !Check(TokenType::kSemicolon)) {
@@ -649,48 +635,62 @@ Statement* Parser::ParseStatement() {
 
 Statement* Parser::ParseFunctionDeclaration() {
   const SourceSpan fn_span{previous_.span};
+
   if (!Check(TokenType::kIdentifier)) {
     ErrorAtCurrent("expected function name");
     return nullptr;
   }
+
   Advance();
   const StringView name{previous_.lexeme};
+
   if (!Match(TokenType::kLeftParen)) {
     ErrorAtCurrent("expected '(' after function name");
     return nullptr;
   }
+
   Vector<FunctionParameter> parameters;
+
   if (!Check(TokenType::kRightParen)) {
     do {
       if (!Check(TokenType::kIdentifier)) {
         ErrorAtCurrent("expected parameter name");
         return nullptr;
       }
+
       Advance();
       const StringView parameter_name{previous_.lexeme};
+
       if (!Match(TokenType::kColon)) {
         ErrorAtCurrent("expected ':' after parameter name");
         return nullptr;
       }
+
       const Type parameter_type{ParseType()};
       if (parameter_type == Type::kInvalid) return nullptr;
       parameters.push_back({.name = parameter_name, .type = parameter_type});
     } while (Match(TokenType::kComma));
   }
+
   if (!Match(TokenType::kRightParen)) {
     ErrorAtCurrent("expected ')' after parameters");
     return nullptr;
   }
+
   if (!Match(TokenType::kColon)) {
     ErrorAtCurrent("expected ':' before function return type");
     return nullptr;
   }
+
   const Type return_type{ParseType()};
+
   if (return_type == Type::kInvalid) return nullptr;
+
   if (!Match(TokenType::kLeftBrace)) {
     ErrorAtCurrent("expected '{' before function body");
     return nullptr;
   }
+
   Expression* const body{ParseBlock()};
   if (body == nullptr) return nullptr;
   return ast_.CreateFunctionDeclarationStatement(
@@ -702,10 +702,12 @@ Statement* Parser::ParseReturnStatement() {
   const SourceSpan return_span{previous_.span};
   Expression* const value{ParseExpression()};
   if (value == nullptr) return nullptr;
+
   if (!Match(TokenType::kSemicolon)) {
     ErrorAtCurrent("expected ';' after return value");
     return nullptr;
   }
+
   return ast_.CreateReturnStatement(value,
                                     MergeSpans(return_span, previous_.span));
 }
@@ -714,22 +716,26 @@ Statement* Parser::ParseIfStatement() {
   const SourceSpan if_span{previous_.span};
   Expression* const condition{ParseExpression()};
   if (condition == nullptr) return nullptr;
+
   if (!Match(TokenType::kLeftBrace)) {
     ErrorAtCurrent("expected '{' after if condition");
     return nullptr;
   }
+
   Expression* const then_block{ParseBlock()};
   if (then_block == nullptr) return nullptr;
-
   Expression* else_block{nullptr};
+
   if (Match(TokenType::kElse)) {
     if (!Match(TokenType::kLeftBrace)) {
       ErrorAtCurrent("expected '{' after 'else'");
       return nullptr;
     }
+
     else_block = ParseBlock();
     if (else_block == nullptr) return nullptr;
   }
+
   return ast_.CreateIfStatement(
       condition, then_block, else_block,
       MergeSpans(if_span,
@@ -740,10 +746,12 @@ Statement* Parser::ParseWhileStatement() {
   const SourceSpan while_span{previous_.span};
   Expression* const condition{ParseExpression()};
   if (condition == nullptr) return nullptr;
+
   if (!Match(TokenType::kLeftBrace)) {
     ErrorAtCurrent("expected '{' after while condition");
     return nullptr;
   }
+
   Expression* const body{ParseBlock()};
   if (body == nullptr) return nullptr;
   return ast_.CreateWhileStatement(condition, body,
@@ -752,50 +760,61 @@ Statement* Parser::ParseWhileStatement() {
 
 Statement* Parser::ParseForStatement() {
   const SourceSpan for_span{previous_.span};
+
   if (!Match(TokenType::kLeftParen)) {
     ErrorAtCurrent("expected '(' after 'for'");
     return nullptr;
   }
 
   Statement* initializer{nullptr};
+
   if (Match(TokenType::kSemicolon)) {
+    // All good.
   } else if (Match(TokenType::kLet)) {
     initializer = ParseVariableDeclaration();
     if (initializer == nullptr) return nullptr;
   } else {
     Expression* const expression{ParseExpression()};
     if (expression == nullptr) return nullptr;
+
     if (!Match(TokenType::kSemicolon)) {
       ErrorAtCurrent("expected ';' after for initializer");
       return nullptr;
     }
+
     initializer = ast_.CreateExpressionStatement(
         expression, MergeSpans(expression->span, previous_.span));
   }
 
   Expression* condition{nullptr};
+
   if (!Check(TokenType::kSemicolon)) {
     condition = ParseExpression();
     if (condition == nullptr) return nullptr;
   }
+
   if (!Match(TokenType::kSemicolon)) {
     ErrorAtCurrent("expected ';' after for condition");
     return nullptr;
   }
 
   Expression* increment{nullptr};
+
   if (!Check(TokenType::kRightParen)) {
     increment = ParseExpression();
     if (increment == nullptr) return nullptr;
   }
+
   if (!Match(TokenType::kRightParen)) {
     ErrorAtCurrent("expected ')' after for clauses");
     return nullptr;
   }
+
   if (!Match(TokenType::kLeftBrace)) {
     ErrorAtCurrent("expected '{' after for clauses");
     return nullptr;
   }
+
   Expression* const body{ParseBlock()};
   if (body == nullptr) return nullptr;
   return ast_.CreateForStatement(initializer, condition, increment, body,
@@ -804,19 +823,23 @@ Statement* Parser::ParseForStatement() {
 
 Statement* Parser::ParseBreakStatement() {
   const SourceSpan keyword_span{previous_.span};
+
   if (!Match(TokenType::kSemicolon)) {
     ErrorAtCurrent("expected ';' after 'break'");
     return nullptr;
   }
+
   return ast_.CreateBreakStatement(MergeSpans(keyword_span, previous_.span));
 }
 
 Statement* Parser::ParseContinueStatement() {
   const SourceSpan keyword_span{previous_.span};
+
   if (!Match(TokenType::kSemicolon)) {
     ErrorAtCurrent("expected ';' after 'continue'");
     return nullptr;
   }
+
   return ast_.CreateContinueStatement(MergeSpans(keyword_span, previous_.span));
 }
 
@@ -824,6 +847,7 @@ Statement* Parser::ParseSwitchStatement() {
   const SourceSpan switch_span{previous_.span};
   Expression* const value{ParseExpression()};
   if (value == nullptr) return nullptr;
+
   if (!Match(TokenType::kLeftBrace)) {
     ErrorAtCurrent("expected '{' after switch value");
     return nullptr;
@@ -831,19 +855,23 @@ Statement* Parser::ParseSwitchStatement() {
 
   Vector<SwitchCase> cases;
   Expression* default_body{nullptr};
+
   while (!Check(TokenType::kRightBrace) && !Check(TokenType::kEndOfFile)) {
     if (Match(TokenType::kCase)) {
       Expression* const case_value{ParseExpression()};
       if (case_value == nullptr) return nullptr;
+
       if (!Match(TokenType::kLeftBrace)) {
         ErrorAtCurrent("expected '{' after case value");
         return nullptr;
       }
+
       Expression* const body{ParseBlock()};
       if (body == nullptr) return nullptr;
       cases.push_back({.value = case_value, .body = body});
       continue;
     }
+
     if (Match(TokenType::kDefault)) {
       if (default_body != nullptr) {
         ErrorAtPrevious("duplicate default case");
@@ -853,17 +881,21 @@ Statement* Parser::ParseSwitchStatement() {
         ErrorAtCurrent("expected '{' after 'default'");
         return nullptr;
       }
+
       default_body = ParseBlock();
       if (default_body == nullptr) return nullptr;
       continue;
     }
+
     ErrorAtCurrent("expected 'case', 'default', or '}' in switch");
     return nullptr;
   }
+
   if (!Match(TokenType::kRightBrace)) {
     ErrorAtCurrent("expected '}' after switch");
     return nullptr;
   }
+
   return ast_.CreateSwitchStatement(value, std::move(cases), default_body,
                                     MergeSpans(switch_span, previous_.span));
 }
@@ -876,14 +908,13 @@ Statement* Parser::ParseVariableDeclaration() {
     ErrorAtCurrent("expected variable name after 'let'");
     return nullptr;
   }
-  const Token name{previous_};
 
+  const Token name{previous_};
   Type explicit_type{Type::kInvalid};
+
   if (Match(TokenType::kColon)) {
     explicit_type = ParseType();
-    if (explicit_type == Type::kInvalid) {
-      return nullptr;
-    }
+    if (explicit_type == Type::kInvalid) return nullptr;
   }
 
   if (!Match(TokenType::kEqual)) {
@@ -892,9 +923,7 @@ Statement* Parser::ParseVariableDeclaration() {
   }
 
   Expression* const initializer{ParseExpression()};
-  if (initializer == nullptr) {
-    return nullptr;
-  }
+  if (initializer == nullptr) return nullptr;
 
   if (!Match(TokenType::kSemicolon)) {
     ErrorAtCurrent("expected ';' after variable declaration");

@@ -5,6 +5,8 @@
 namespace fell {
 
 enum class LogLevel {
+  kInvalid,
+
   kDebug,
   kInfo,
   kWarning,

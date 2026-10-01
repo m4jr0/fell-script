@@ -12,8 +12,8 @@ class IrBuilder {
 
  private:
   struct LoopContext {
-    IrLabelId continue_target;
-    IrLabelId break_target;
+    IrLabelId continue_target{kInvalidIrLabelId};
+    IrLabelId break_target{kInvalidIrLabelId};
   };
 
   void BuildStatement(const Statement& statement,

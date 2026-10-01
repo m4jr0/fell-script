@@ -13,7 +13,7 @@ struct BytecodeReadResult {
   BytecodeModule module;
   String error;
 
-  bool Succeeded() const { return error.empty(); }
+  [[nodiscard]] bool Succeeded() const { return error.empty(); }
 };
 
 Vector<u8> SerializeBytecode(const BytecodeModule& module);

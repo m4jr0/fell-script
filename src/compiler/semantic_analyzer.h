@@ -2,22 +2,37 @@
 
 #include "compiler/ast.h"
 #include "compiler/diagnostic.h"
+#include "compiler/native_function.h"
 #include "compiler/type.h"
 
 namespace fell {
 
 enum class VariableStorage : u8 {
+  kInvalid,
+
   kGlobal,
   kLocal,
 };
 
 struct VariableBinding {
-  VariableStorage storage{VariableStorage::kGlobal};
-  u32 slot{0};
+  VariableStorage storage{VariableStorage::kInvalid};
+  u32 slot{kMaxValue<u32>};
 };
 
 using FunctionId = u32;
-inline constexpr FunctionId kInvalidFunctionId{kMaxValue<u32>};
+inline constexpr FunctionId kInvalidFunctionId{static_cast<FunctionId>(-1)};
+
+enum class FunctionStorage : u8 {
+  kInvalid,
+
+  kFell,
+  kNative,
+};
+
+struct FunctionBinding {
+  FunctionStorage storage{FunctionStorage::kInvalid};
+  u32 slot{kMaxValue<u32>};
+};
 
 struct FunctionSemantics {
   StringView name;
@@ -31,8 +46,7 @@ struct ExpressionSemantics {
   Type type{Type::kInvalid};
   Type operand_type{Type::kInvalid};
   VariableBinding binding{};
-  FunctionId function_id{kInvalidFunctionId};
-  bool is_native{false};
+  FunctionBinding function{};
 };
 
 struct StatementSemantics {
@@ -48,7 +62,9 @@ class SemanticModel {
   [[nodiscard]] const StatementSemantics& Get(const Statement& statement) const;
   [[nodiscard]] u32 global_count() const { return global_count_; }
   [[nodiscard]] u32 local_count() const { return local_count_; }
-  [[nodiscard]] const Vector<FunctionSemantics>& functions() const { return functions_; }
+  [[nodiscard]] const Vector<FunctionSemantics>& functions() const {
+    return functions_;
+  }
 
  private:
   friend class SemanticAnalyzer;
@@ -77,8 +93,8 @@ class SemanticAnalyzer {
     StringView name;
     Type type;
     VariableBinding binding;
-    u32 scope_depth;
-    bool is_mutable;
+    u32 scope_depth{0};
+    bool is_mutable{false};
   };
 
   static Type GetIntegerLiteralType(const IntegerLiteralExpression& literal);
@@ -89,13 +105,27 @@ class SemanticAnalyzer {
                                             Type expected_type,
                                             SemanticResult& result);
 
-  const Symbol* FindSymbol(StringView name) const;
-  const FunctionSemantics* FindFunction(StringView name, FunctionId* id = nullptr) const;
-  const Symbol* FindSymbolInCurrentScope(StringView name) const;
+  void Reset();
+  void DeclareFunctions(const CompilationUnit& unit, SemanticResult& result);
+
+  [[nodiscard]] const Symbol* FindSymbol(StringView name) const;
+  [[nodiscard]] const Symbol* FindSymbolInCurrentScope(StringView name) const;
+  [[nodiscard]] const FunctionSemantics* FindFunction(
+      StringView name, FunctionId* id = nullptr) const;
+  [[nodiscard]] const NativeFunctionDescriptor* FindNativeFunction(
+      StringView name) const;
+
   void BeginScope();
   void EndScope();
+
   void AnalyzeStatement(const Statement& statement, SemanticResult& result);
+  void AnalyzeFunctionDeclaration(const Statement& statement,
+                                  SemanticResult& result);
   void AnalyzeExpression(const Expression& expression, SemanticResult& result);
+  void AnalyzeCall(const Expression& expression, SemanticResult& result);
+  bool AnalyzeCallArguments(const CallData& call,
+                            const Vector<Type>& parameter_types,
+                            bool accepts_any_value, SemanticResult& result);
 
   Vector<Symbol> symbols_;
   u32 scope_depth_{0};

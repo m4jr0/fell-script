@@ -16,6 +16,9 @@ bool HasErrors(Span<const Diagnostic> diagnostics) {
 
 StringView ToString(DiagnosticSeverity severity) {
   switch (severity) {
+    case DiagnosticSeverity::kInvalid:
+      FELL_UNREACHABLE();
+
     case DiagnosticSeverity::kError:
       return "error";
     case DiagnosticSeverity::kWarning:

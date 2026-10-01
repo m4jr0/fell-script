@@ -11,6 +11,9 @@ namespace fell {
 
 StringView ToString(Opcode opcode) {
   switch (opcode) {
+    case Opcode::kInvalid:
+      FELL_UNREACHABLE();
+
     case Opcode::kLoadImmediate:
       return "load_immediate";
     case Opcode::kLoadString:
@@ -333,6 +336,9 @@ String DumpBytecode(const BytecodeModule& module) {
            << ToString(instruction.opcode);
 
     switch (instruction.opcode) {
+      case Opcode::kInvalid:
+        FELL_UNREACHABLE();
+
       case Opcode::kLoadImmediate:
         output << " r" << instruction.load_immediate.destination << ", "
                << ToString(instruction.load_immediate.value);

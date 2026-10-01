@@ -98,6 +98,8 @@ void WriteValue(Writer& writer, const Value& value) {
   writer.WriteU8(static_cast<u8>(value.type));
 
   switch (value.type) {
+    case ValueType::kInvalid:
+      FELL_UNREACHABLE();
     case ValueType::kBool:
       writer.WriteU8(value.data.bool_value ? 1 : 0);
       break;
@@ -144,6 +146,8 @@ bool ReadValue(Reader& reader, Value& value) {
   value.type = static_cast<ValueType>(type);
 
   switch (value.type) {
+    case ValueType::kInvalid:
+      return false;
     case ValueType::kBool: {
       u8 data{};
       if (!reader.ReadU8(data) || data > 1) {
@@ -504,10 +508,13 @@ BytecodeReadResult DeserializeBytecode(Span<const u8> data) {
       NativeCallInstruction call_native{}; u8 raw_type{};
       if (!reader.ReadU16(call_native.argument) || !reader.ReadU8(raw_type) ||
           !IsValidRegister(call_native.argument, module) || !IsValidValueType(raw_type))
-        return {.module = {}, .error = "invalid print instruction"};
+        return {.module = {}, .error = "invalid native call instruction"};
       call_native.type = static_cast<ValueType>(raw_type);
-      if (!reader.ReadU32(call_native.function) || call_native.function != 0)
+      if (!reader.ReadU32(call_native.function) ||
+          (call_native.function != kPrintNativeFunctionId &&
+           call_native.function != kAssertNativeFunctionId)) {
         return {.module = {}, .error = "invalid native function"};
+      }
       module.instructions.push_back({.opcode = opcode, .call_native = call_native});
     } else if (IsConvertOpcode(opcode)) {
       ConvertInstruction convert{};

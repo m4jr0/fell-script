@@ -2,11 +2,16 @@
 
 #include <iostream>
 
+#include "core/assert.h"
+
 namespace fell {
 namespace {
 
 void DefaultLogSink(LogLevel level, StringView message) {
   switch (level) {
+    case LogLevel::kInvalid:
+      FELL_UNREACHABLE();
+
     case LogLevel::kDebug:
       std::cerr << "[debug] ";
       break;

@@ -23,6 +23,9 @@ String NumberToString(T value) {
 
 String ToString(const Value& value) {
   switch (value.type) {
+    case ValueType::kInvalid:
+      FELL_UNREACHABLE();
+
     case ValueType::kBool:
       return value.data.bool_value ? "true" : "false";
 

@@ -13,6 +13,9 @@ namespace {
 
 StringView ToString(UnaryOperator op) {
   switch (op) {
+    case UnaryOperator::kInvalid:
+      FELL_UNREACHABLE();
+
     case UnaryOperator::kNegate:
       return "-";
     case UnaryOperator::kLogicalNot:
@@ -24,6 +27,9 @@ StringView ToString(UnaryOperator op) {
 
 StringView ToString(BinaryOperator op) {
   switch (op) {
+    case BinaryOperator::kInvalid:
+      FELL_UNREACHABLE();
+
     case BinaryOperator::kLogicalAnd:
       return "&&";
     case BinaryOperator::kLogicalOr:
@@ -55,6 +61,9 @@ StringView ToString(BinaryOperator op) {
 
 StringView ToString(IrOpcode opcode) {
   switch (opcode) {
+    case IrOpcode::kInvalid:
+      FELL_UNREACHABLE();
+
     case IrOpcode::kConstant:
       return "constant";
     case IrOpcode::kConvert:
@@ -122,144 +131,235 @@ void DumpExpression(const Expression& expression, std::ostringstream& output,
 void DumpStatement(const Statement& statement, std::ostringstream& output,
                    usize depth) {
   WriteIndent(output, depth);
+
   switch (statement.kind) {
+    case StatementKind::kInvalid:
+      FELL_UNREACHABLE();
+
     case StatementKind::kExpression:
       output << "ExpressionStatement\n";
       DumpExpression(*statement.expression.expression, output, depth + 1);
       return;
+
     case StatementKind::kVariableDeclaration: {
       const auto& declaration{statement.variable_declaration};
       output << "VariableDeclaration " << (declaration.is_mutable ? "mut " : "")
              << declaration.name;
-      if (declaration.explicit_type != Type::kInvalid)
+
+      if (declaration.explicit_type != Type::kInvalid) {
         output << ": " << ToString(declaration.explicit_type);
+      }
+
       output << '\n';
       DumpExpression(*declaration.initializer, output, depth + 1);
       return;
     }
+
     case StatementKind::kFunctionDeclaration: {
       const FunctionData& function{*statement.function_declaration.data};
-      output << "FunctionDeclaration " << function.name << " -> " << ToString(function.return_type) << '\n';
+      output << "FunctionDeclaration " << function.name << " -> "
+             << ToString(function.return_type) << '\n';
+
       for (const FunctionParameter& parameter : function.parameters) {
-        WriteIndent(output, depth + 1); output << "Parameter " << parameter.name << ": " << ToString(parameter.type) << '\n';
+        WriteIndent(output, depth + 1);
+        output << "Parameter " << parameter.name << ": "
+               << ToString(parameter.type) << '\n';
       }
+
       DumpExpression(*function.body, output, depth + 1);
       return;
     }
+
     case StatementKind::kReturn:
       output << "ReturnStatement\n";
       DumpExpression(*statement.return_.value, output, depth + 1);
       return;
+
     case StatementKind::kIf:
       output << "IfStatement\n";
-      WriteIndent(output, depth + 1); output << "Condition\n";
+      WriteIndent(output, depth + 1);
+      output << "Condition\n";
       DumpExpression(*statement.if_.condition, output, depth + 2);
-      WriteIndent(output, depth + 1); output << "Then\n";
+      WriteIndent(output, depth + 1);
+      output << "Then\n";
       DumpExpression(*statement.if_.then_block, output, depth + 2);
+
       if (statement.if_.else_block != nullptr) {
-        WriteIndent(output, depth + 1); output << "Else\n";
+        WriteIndent(output, depth + 1);
+        output << "Else\n";
         DumpExpression(*statement.if_.else_block, output, depth + 2);
       }
+
       return;
+
     case StatementKind::kWhile:
       output << "WhileStatement\n";
-      WriteIndent(output, depth + 1); output << "Condition\n";
+      WriteIndent(output, depth + 1);
+      output << "Condition\n";
       DumpExpression(*statement.while_.condition, output, depth + 2);
-      WriteIndent(output, depth + 1); output << "Body\n";
+      WriteIndent(output, depth + 1);
+      output << "Body\n";
       DumpExpression(*statement.while_.body, output, depth + 2);
       return;
+
     case StatementKind::kFor:
       output << "ForStatement\n";
+
       if (statement.for_.initializer != nullptr) {
-        WriteIndent(output, depth + 1); output << "Initializer\n";
+        WriteIndent(output, depth + 1);
+        output << "Initializer\n";
         DumpStatement(*statement.for_.initializer, output, depth + 2);
       }
+
       if (statement.for_.condition != nullptr) {
-        WriteIndent(output, depth + 1); output << "Condition\n";
+        WriteIndent(output, depth + 1);
+        output << "Condition\n";
         DumpExpression(*statement.for_.condition, output, depth + 2);
       }
+
       if (statement.for_.increment != nullptr) {
-        WriteIndent(output, depth + 1); output << "Increment\n";
+        WriteIndent(output, depth + 1);
+        output << "Increment\n";
         DumpExpression(*statement.for_.increment, output, depth + 2);
       }
-      WriteIndent(output, depth + 1); output << "Body\n";
+
+      WriteIndent(output, depth + 1);
+      output << "Body\n";
       DumpExpression(*statement.for_.body, output, depth + 2);
       return;
+
     case StatementKind::kBreak:
       output << "BreakStatement\n";
       return;
+
     case StatementKind::kContinue:
       output << "ContinueStatement\n";
       return;
+
     case StatementKind::kSwitch:
       output << "SwitchStatement\n";
       DumpExpression(*statement.switch_.data->value, output, depth + 1);
+
       for (const SwitchCase& case_ : statement.switch_.data->cases) {
-        WriteIndent(output, depth + 1); output << "Case\n";
+        WriteIndent(output, depth + 1);
+        output << "Case\n";
         DumpExpression(*case_.value, output, depth + 2);
         DumpExpression(*case_.body, output, depth + 2);
       }
+
       if (statement.switch_.data->default_body != nullptr) {
-        WriteIndent(output, depth + 1); output << "Default\n";
-        DumpExpression(*statement.switch_.data->default_body, output, depth + 2);
+        WriteIndent(output, depth + 1);
+        output << "Default\n";
+        DumpExpression(*statement.switch_.data->default_body, output,
+                       depth + 2);
       }
+
       return;
   }
+
   FELL_UNREACHABLE();
 }
 
 void DumpExpression(const Expression& expression, std::ostringstream& output,
                     usize depth) {
   WriteIndent(output, depth);
+
   switch (expression.kind) {
+    case ExpressionKind::kInvalid:
+      FELL_UNREACHABLE();
+
     case ExpressionKind::kBooleanLiteral:
-      output << "BooleanLiteral " << (expression.boolean_literal.value ? "true" : "false") << '\n'; return;
+      output << "BooleanLiteral "
+             << (expression.boolean_literal.value ? "true" : "false") << '\n';
+      return;
+
     case ExpressionKind::kIntegerLiteral:
       output << "IntegerLiteral " << expression.integer_literal.value;
-      if (expression.integer_literal.explicit_type != Type::kInvalid)
-        output << " [" << ToString(expression.integer_literal.explicit_type) << "]";
-      output << '\n'; return;
+
+      if (expression.integer_literal.explicit_type != Type::kInvalid) {
+        output << " [" << ToString(expression.integer_literal.explicit_type)
+               << "]";
+      }
+
+      output << '\n';
+      return;
+
     case ExpressionKind::kFloatLiteral:
       output << "FloatLiteral " << expression.float_literal.value;
-      if (expression.float_literal.explicit_type != Type::kInvalid)
-        output << " [" << ToString(expression.float_literal.explicit_type) << "]";
-      output << '\n'; return;
+
+      if (expression.float_literal.explicit_type != Type::kInvalid) {
+        output << " [" << ToString(expression.float_literal.explicit_type)
+               << "]";
+      }
+
+      output << '\n';
+      return;
+
     case ExpressionKind::kStringLiteral:
-      output << "StringLiteral \"" << expression.string_literal.value << "\"\n"; return;
+      output << "StringLiteral \"" << expression.string_literal.value << "\"\n";
+      return;
+
     case ExpressionKind::kVariable:
-      output << "VariableExpression " << expression.variable.name << '\n'; return;
+      output << "VariableExpression " << expression.variable.name << '\n';
+      return;
+
     case ExpressionKind::kAssignment:
       output << "AssignmentExpression " << expression.assignment.name << '\n';
-      DumpExpression(*expression.assignment.value, output, depth + 1); return;
+      DumpExpression(*expression.assignment.value, output, depth + 1);
+      return;
+
     case ExpressionKind::kCall:
       output << "CallExpression " << expression.call.data->callee << '\n';
-      for (const Expression* argument : expression.call.data->arguments) DumpExpression(*argument, output, depth + 1);
+
+      for (const Expression* argument : expression.call.data->arguments) {
+        DumpExpression(*argument, output, depth + 1);
+      }
+
       return;
+
     case ExpressionKind::kConditional:
       output << "ConditionalExpression\n";
-      WriteIndent(output, depth + 1); output << "Condition\n";
+      WriteIndent(output, depth + 1);
+      output << "Condition\n";
       DumpExpression(*expression.conditional.condition, output, depth + 2);
-      WriteIndent(output, depth + 1); output << "Then\n";
-      DumpExpression(*expression.conditional.then_expression, output, depth + 2);
-      WriteIndent(output, depth + 1); output << "Else\n";
-      DumpExpression(*expression.conditional.else_expression, output, depth + 2); return;
+      WriteIndent(output, depth + 1);
+      output << "Then\n";
+      DumpExpression(*expression.conditional.then_expression, output,
+                     depth + 2);
+      WriteIndent(output, depth + 1);
+      output << "Else\n";
+      DumpExpression(*expression.conditional.else_expression, output,
+                     depth + 2);
+      return;
+
     case ExpressionKind::kBlock:
       output << "BlockExpression\n";
-      for (const Statement* statement : expression.block.body->statements)
+
+      for (const Statement* statement : expression.block.body->statements) {
         DumpStatement(*statement, output, depth + 1);
-      if (expression.block.trailing_expression != nullptr) {
-        WriteIndent(output, depth + 1); output << "TrailingExpression\n";
-        DumpExpression(*expression.block.trailing_expression, output, depth + 2);
       }
+
+      if (expression.block.trailing_expression != nullptr) {
+        WriteIndent(output, depth + 1);
+        output << "TrailingExpression\n";
+        DumpExpression(*expression.block.trailing_expression, output,
+                       depth + 2);
+      }
+
       return;
+
     case ExpressionKind::kUnary:
       output << "UnaryExpression (" << ToString(expression.unary.op) << ")\n";
-      DumpExpression(*expression.unary.operand, output, depth + 1); return;
+      DumpExpression(*expression.unary.operand, output, depth + 1);
+      return;
+
     case ExpressionKind::kBinary:
       output << "BinaryExpression (" << ToString(expression.binary.op) << ")\n";
       DumpExpression(*expression.binary.left, output, depth + 1);
-      DumpExpression(*expression.binary.right, output, depth + 1); return;
+      DumpExpression(*expression.binary.right, output, depth + 1);
+      return;
   }
+
   FELL_UNREACHABLE();
 }
 
@@ -284,15 +384,18 @@ String DumpTokens(StringView source) {
 String DumpAst(const CompilationUnit& unit) {
   std::ostringstream output{};
   output << "CompilationUnit\n";
-  for (const Statement* statement : unit.statements)
+
+  for (const Statement* statement : unit.statements) {
     DumpStatement(*statement, output, 1);
+  }
+
   return output.str();
 }
 
 String DumpIr(const IrProgram& program) {
   std::ostringstream output{};
-
   output << "values:\n";
+
   for (usize index{0}; index < program.values.size(); ++index) {
     output << "  %" << index << ": " << ToString(program.values[index].type)
            << '\n';
@@ -302,6 +405,9 @@ String DumpIr(const IrProgram& program) {
 
   for (const IrInstruction& instruction : program.instructions) {
     switch (instruction.opcode) {
+      case IrOpcode::kInvalid:
+        FELL_UNREACHABLE();
+
       case IrOpcode::kConstant: {
         const Type type{
             GetIrValue(program, instruction.constant.destination).type,
@@ -342,7 +448,7 @@ String DumpIr(const IrProgram& program) {
             break;
 
           case Type::kUnit:
-    case Type::kInvalid:
+          case Type::kInvalid:
           case Type::kError:
             FELL_UNREACHABLE();
         }
@@ -372,28 +478,45 @@ String DumpIr(const IrProgram& program) {
         break;
 
       case IrOpcode::kMove:
-        output << "  %" << instruction.move.destination.value << " = move %" << instruction.move.source.value << '\n';
+        output << "  %" << instruction.move.destination.value << " = move %"
+               << instruction.move.source.value << '\n';
         break;
+
       case IrOpcode::kLabel:
         output << "L" << instruction.label.label << ":\n";
         break;
+
       case IrOpcode::kJump:
         output << "  jump L" << instruction.jump.target << '\n';
         break;
+
       case IrOpcode::kJumpIfFalse:
-        output << "  jump_if_false %" << instruction.jump_if_false.condition.value << ", L" << instruction.jump_if_false.target << '\n';
+        output << "  jump_if_false %"
+               << instruction.jump_if_false.condition.value << ", L"
+               << instruction.jump_if_false.target << '\n';
         break;
 
       case IrOpcode::kCall:
-        output << "  %" << instruction.call.destination.value << " = call fn#" << instruction.call.function << " (";
+        output << "  %" << instruction.call.destination.value << " = call fn#"
+               << instruction.call.function << " (";
+
         for (u32 i{0}; i < instruction.call.argument_count; ++i) {
           if (i != 0) output << ", ";
-          output << "%" << program.call_arguments[instruction.call.argument_offset + i].value;
+
+          output << "%"
+                 << program.call_arguments[instruction.call.argument_offset + i]
+                        .value;
         }
+
         output << ")\n";
         break;
+
       case IrOpcode::kCallNative:
-        output << "  call_native print %" << instruction.call_native.argument.value << '\n';
+        output << "  call_native "
+               << (instruction.call_native.function == kPrintNativeFunctionId
+                       ? "print"
+                       : "assert")
+               << " %" << instruction.call_native.argument.value << '\n';
         break;
 
       case IrOpcode::kConvert: {

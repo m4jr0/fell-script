@@ -2,11 +2,14 @@
 
 #include "core/type.h"
 #include "core/vector.h"
+#include "runtime/native_function.h"
 #include "runtime/value.h"
 
 namespace fell {
 
 enum class Opcode : u8 {
+  kInvalid,
+
   kLoadImmediate,
   kLoadString,
   kLoadGlobal,
@@ -177,63 +180,71 @@ enum class Opcode : u8 {
 };
 
 using RegisterId = u16;
+inline constexpr RegisterId kInvalidRegisterId{static_cast<RegisterId>(-1)};
+
 using StringConstantId = u32;
+inline constexpr StringConstantId kInvalidStringConstantId{static_cast<StringConstantId>(-1)};
+
 using GlobalId = u32;
+inline constexpr GlobalId kInvalidGlobalId{static_cast<GlobalId>(-1)};
+
 using LocalId = u32;
+inline constexpr LocalId kInvalidLocalId{static_cast<LocalId>(-1)};
+
 using FunctionId = u32;
+inline constexpr FunctionId kInvalidBytecodeFunctionId{static_cast<FunctionId>(-1)};
 
 inline constexpr u32 kMaxRegisterCount{256};
 
 struct LoadImmediateInstruction {
-  RegisterId destination;
+  RegisterId destination{kInvalidRegisterId};
   Value value;
 };
 
 struct LoadStringInstruction {
-  RegisterId destination;
-  StringConstantId constant;
+  RegisterId destination{kInvalidRegisterId};
+  StringConstantId constant{kInvalidStringConstantId};
 };
 
 struct GlobalInstruction {
-  RegisterId value;
-  GlobalId global;
+  RegisterId value{kInvalidRegisterId};
+  GlobalId global{kInvalidGlobalId};
 };
 
 struct LocalInstruction {
-  RegisterId value;
-  LocalId local;
+  RegisterId value{kInvalidRegisterId};
+  LocalId local{kInvalidLocalId};
 };
 
-struct MoveInstruction { RegisterId destination; RegisterId source; };
-struct JumpInstruction { u32 target; };
-struct JumpIfFalseInstruction { RegisterId condition; u32 target; };
-struct CallInstruction { RegisterId destination; FunctionId function; u32 argument_offset; u32 argument_count; };
-using NativeFunctionId = u32;
-struct NativeCallInstruction { RegisterId argument; ValueType type; NativeFunctionId function; };
+struct MoveInstruction { RegisterId destination{kInvalidRegisterId}; RegisterId source{kInvalidRegisterId}; };
+struct JumpInstruction { u32 target{kMaxValue<u32>}; };
+struct JumpIfFalseInstruction { RegisterId condition{kInvalidRegisterId}; u32 target{kMaxValue<u32>}; };
+struct CallInstruction { RegisterId destination{kInvalidRegisterId}; FunctionId function{kInvalidBytecodeFunctionId}; u32 argument_offset{0}; u32 argument_count{0}; };
+struct NativeCallInstruction { RegisterId argument{kInvalidRegisterId}; ValueType type{ValueType::kInvalid}; NativeFunctionId function{kInvalidNativeFunctionId}; };
 
 struct ConvertInstruction {
-  RegisterId destination;
-  RegisterId source;
+  RegisterId destination{kInvalidRegisterId};
+  RegisterId source{kInvalidRegisterId};
 };
 
 struct UnaryInstruction {
-  RegisterId destination;
-  RegisterId operand;
+  RegisterId destination{kInvalidRegisterId};
+  RegisterId operand{kInvalidRegisterId};
 };
 
 struct BinaryInstruction {
-  RegisterId destination;
-  RegisterId left;
-  RegisterId right;
+  RegisterId destination{kInvalidRegisterId};
+  RegisterId left{kInvalidRegisterId};
+  RegisterId right{kInvalidRegisterId};
 };
 
 struct ReturnInstruction {
-  RegisterId source;
-  ValueType type;
+  RegisterId source{kInvalidRegisterId};
+  ValueType type{ValueType::kInvalid};
 };
 
 struct Instruction {
-  Opcode opcode;
+  Opcode opcode{Opcode::kInvalid};
 
   union {
     LoadImmediateInstruction load_immediate;
@@ -253,9 +264,9 @@ struct Instruction {
 };
 
 struct BytecodeFunction {
-  u32 entry;
+  u32 entry{kMaxValue<u32>};
   Vector<LocalId> parameter_local_slots;
-  ValueType return_type;
+  ValueType return_type{ValueType::kInvalid};
 };
 
 struct BytecodeModule {

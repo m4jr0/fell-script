@@ -581,6 +581,7 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
 
   Vector<u32> label_targets;
   u32 bytecode_index{0};
+
   for (const IrInstruction& instruction : ir.instructions) {
     if (instruction.opcode == IrOpcode::kLabel) {
       if (label_targets.size() <= instruction.label.label)
@@ -591,22 +592,39 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
     }
   }
 
-  for (const IrValueId argument : ir.call_arguments) module.call_arguments.push_back(ToRegister(argument));
+  for (const IrValueId argument : ir.call_arguments) {
+    module.call_arguments.push_back(ToRegister(argument));
+  }
+
   for (const IrFunction& function : ir.functions) {
     FELL_ASSERT(function.entry < label_targets.size());
     Vector<LocalId> parameter_slots;
-    for (IrLocalId slot : function.parameter_local_slots) parameter_slots.push_back(slot);
-    module.functions.push_back({.entry = label_targets[function.entry],
-                                .parameter_local_slots = std::move(parameter_slots),
-                                .return_type = ToValueType(function.return_type)});
+
+    for (IrLocalId slot : function.parameter_local_slots) {
+      parameter_slots.push_back(slot);
+    }
+
+    module.functions.push_back({
+        .entry = label_targets[function.entry],
+        .parameter_local_slots = std::move(parameter_slots),
+        .return_type = ToValueType(function.return_type),
+    });
   }
-  for (u32 index{0}; index < ir.main_instruction_count; ++index)
-    if (ir.instructions[index].opcode != IrOpcode::kLabel) ++module.main_instruction_count;
+
+  for (u32 index{0}; index < ir.main_instruction_count; ++index) {
+    if (ir.instructions[index].opcode != IrOpcode::kLabel) {
+      ++module.main_instruction_count;
+    }
+  }
 
   for (const IrInstruction& instruction : ir.instructions) {
     switch (instruction.opcode) {
+      case IrOpcode::kInvalid:
+        FELL_UNREACHABLE();
+
       case IrOpcode::kConstant: {
         const Type type{GetIrValue(ir, instruction.constant.destination).type};
+
         if (type == Type::kString) {
           module.instructions.push_back({
               .opcode = Opcode::kLoadString,
@@ -634,32 +652,44 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
       case IrOpcode::kLoadGlobal:
         module.instructions.push_back({
             .opcode = Opcode::kLoadGlobal,
-            .global = {.value = ToRegister(instruction.global.value),
-                       .global = instruction.global.global},
+            .global =
+                {
+                    .value = ToRegister(instruction.global.value),
+                    .global = instruction.global.global,
+                },
         });
         break;
 
       case IrOpcode::kStoreGlobal:
         module.instructions.push_back({
             .opcode = Opcode::kStoreGlobal,
-            .global = {.value = ToRegister(instruction.global.value),
-                       .global = instruction.global.global},
+            .global =
+                {
+                    .value = ToRegister(instruction.global.value),
+                    .global = instruction.global.global,
+                },
         });
         break;
 
       case IrOpcode::kLoadLocal:
         module.instructions.push_back({
             .opcode = Opcode::kLoadLocal,
-            .local = {.value = ToRegister(instruction.local.value),
-                      .local = instruction.local.local},
+            .local =
+                {
+                    .value = ToRegister(instruction.local.value),
+                    .local = instruction.local.local,
+                },
         });
         break;
 
       case IrOpcode::kStoreLocal:
         module.instructions.push_back({
             .opcode = Opcode::kStoreLocal,
-            .local = {.value = ToRegister(instruction.local.value),
-                      .local = instruction.local.local},
+            .local =
+                {
+                    .value = ToRegister(instruction.local.value),
+                    .local = instruction.local.local,
+                },
         });
         break;
 
@@ -667,37 +697,63 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
         break;
 
       case IrOpcode::kMove:
-        module.instructions.push_back({.opcode = Opcode::kMove,
-                                       .move = {.destination = ToRegister(instruction.move.destination),
-                                                .source = ToRegister(instruction.move.source)}});
+        module.instructions.push_back({
+            .opcode = Opcode::kMove,
+            .move =
+                {
+                    .destination = ToRegister(instruction.move.destination),
+                    .source = ToRegister(instruction.move.source),
+                },
+        });
         break;
 
       case IrOpcode::kJump:
         FELL_ASSERT(instruction.jump.target < label_targets.size());
-        module.instructions.push_back({.opcode = Opcode::kJump,
-                                       .jump = {.target = label_targets[instruction.jump.target]}});
+        module.instructions.push_back({
+            .opcode = Opcode::kJump,
+            .jump =
+                {
+                    .target = label_targets[instruction.jump.target],
+                },
+        });
         break;
 
       case IrOpcode::kJumpIfFalse:
         FELL_ASSERT(instruction.jump_if_false.target < label_targets.size());
-        module.instructions.push_back({.opcode = Opcode::kJumpIfFalse,
-                                       .jump_if_false = {.condition = ToRegister(instruction.jump_if_false.condition),
-                                                         .target = label_targets[instruction.jump_if_false.target]}});
+        module.instructions.push_back({
+            .opcode = Opcode::kJumpIfFalse,
+            .jump_if_false =
+                {
+                    .condition =
+                        ToRegister(instruction.jump_if_false.condition),
+                    .target = label_targets[instruction.jump_if_false.target],
+                },
+        });
         break;
 
       case IrOpcode::kCall:
-        module.instructions.push_back({.opcode = Opcode::kCall,
-                                       .call = {.destination = ToRegister(instruction.call.destination),
-                                                .function = instruction.call.function,
-                                                .argument_offset = instruction.call.argument_offset,
-                                                .argument_count = instruction.call.argument_count}});
+        module.instructions.push_back({
+            .opcode = Opcode::kCall,
+            .call =
+                {
+                    .destination = ToRegister(instruction.call.destination),
+                    .function = instruction.call.function,
+                    .argument_offset = instruction.call.argument_offset,
+                    .argument_count = instruction.call.argument_count,
+                },
+        });
         break;
 
       case IrOpcode::kCallNative:
-        module.instructions.push_back({.opcode = Opcode::kCallNative,
-                                       .call_native = {.argument = ToRegister(instruction.call_native.argument),
-                                                       .type = ToValueType(instruction.call_native.argument_type),
-                                                       .function = 0}});
+        module.instructions.push_back({
+            .opcode = Opcode::kCallNative,
+            .call_native =
+                {
+                    .argument = ToRegister(instruction.call_native.argument),
+                    .type = ToValueType(instruction.call_native.argument_type),
+                    .function = instruction.call_native.function,
+                },
+        });
         break;
 
       case IrOpcode::kConvert: {

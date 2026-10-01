@@ -1,5 +1,6 @@
 #include "compiler/lexer.h"
 
+#include "core/assert.h"
 #include "core/char.h"
 #include "core/string.h"
 
@@ -64,11 +65,13 @@ Token Lexer::NextToken() {
 
     case '&':
       Advance();
-      return MakeToken(Match('&') ? TokenType::kAmpAmp : TokenType::kInvalid, start);
+      return MakeToken(Match('&') ? TokenType::kAmpAmp : TokenType::kInvalid,
+                       start);
 
     case '|':
       Advance();
-      return MakeToken(Match('|') ? TokenType::kPipePipe : TokenType::kInvalid, start);
+      return MakeToken(Match('|') ? TokenType::kPipePipe : TokenType::kInvalid,
+                       start);
 
     case '!':
       Advance();
@@ -275,6 +278,7 @@ Token Lexer::TokenizeString(SourceLocation start) {
     if (Peek() == '\n') {
       return MakeToken(TokenType::kInvalid, start);
     }
+
     Advance();
   }
 
@@ -307,64 +311,79 @@ bool Lexer::IsIdentifierContinue(char character) const {
   return IsIdentifierStart(character) || IsDigit(character);
 }
 
+TokenType Lexer::CheckKeyword(StringView lexeme, usize start, StringView rest,
+                              TokenType type) const {
+  FELL_ASSERT(start <= lexeme.size());
+
+  if (lexeme.size() != start + rest.size()) {
+    return TokenType::kIdentifier;
+  }
+
+  return lexeme.substr(start) == rest ? type : TokenType::kIdentifier;
+}
+
 TokenType Lexer::GetIdentifierType(StringView lexeme) const {
+  FELL_ASSERT(!lexeme.empty());
+
   switch (lexeme[0]) {
     case 'b':
-      if (lexeme == "break") return TokenType::kBreak;
-      break;
+      return CheckKeyword(lexeme, 1, "reak", TokenType::kBreak);
 
     case 'c':
-      if (lexeme == "case") return TokenType::kCase;
-      if (lexeme == "continue") return TokenType::kContinue;
+      if (lexeme.size() > 1) {
+        switch (lexeme[1]) {
+          case 'a':
+            return CheckKeyword(lexeme, 2, "se", TokenType::kCase);
+
+          case 'o':
+            return CheckKeyword(lexeme, 2, "ntinue", TokenType::kContinue);
+        }
+      }
+
       break;
 
     case 'd':
-      if (lexeme == "default") return TokenType::kDefault;
-      break;
+      return CheckKeyword(lexeme, 1, "efault", TokenType::kDefault);
 
     case 'e':
-      if (lexeme == "else") return TokenType::kElse;
-      break;
+      return CheckKeyword(lexeme, 1, "lse", TokenType::kElse);
 
     case 'f':
-      if (lexeme == "false") return TokenType::kFalse;
-      if (lexeme == "for") return TokenType::kFor;
-      if (lexeme == "fn") return TokenType::kFn;
+      if (lexeme.size() > 1) {
+        switch (lexeme[1]) {
+          case 'a':
+            return CheckKeyword(lexeme, 2, "lse", TokenType::kFalse);
+
+          case 'n':
+            return CheckKeyword(lexeme, 2, "", TokenType::kFn);
+
+          case 'o':
+            return CheckKeyword(lexeme, 2, "r", TokenType::kFor);
+        }
+      }
+
       break;
 
     case 'i':
-      if (lexeme == "if") return TokenType::kIf;
-      break;
+      return CheckKeyword(lexeme, 1, "f", TokenType::kIf);
 
     case 'l':
-      if (lexeme == "let") {
-        return TokenType::kLet;
-      }
-      break;
+      return CheckKeyword(lexeme, 1, "et", TokenType::kLet);
 
     case 'm':
-      if (lexeme == "mut") {
-        return TokenType::kMut;
-      }
-      break;
+      return CheckKeyword(lexeme, 1, "ut", TokenType::kMut);
 
     case 'r':
-      if (lexeme == "return") return TokenType::kReturn;
-      break;
+      return CheckKeyword(lexeme, 1, "eturn", TokenType::kReturn);
 
     case 's':
-      if (lexeme == "switch") return TokenType::kSwitch;
-      break;
+      return CheckKeyword(lexeme, 1, "witch", TokenType::kSwitch);
 
     case 't':
-      if (lexeme == "true") {
-        return TokenType::kTrue;
-      }
-      break;
+      return CheckKeyword(lexeme, 1, "rue", TokenType::kTrue);
 
     case 'w':
-      if (lexeme == "while") return TokenType::kWhile;
-      break;
+      return CheckKeyword(lexeme, 1, "hile", TokenType::kWhile);
   }
 
   return TokenType::kIdentifier;

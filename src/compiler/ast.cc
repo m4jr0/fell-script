@@ -26,7 +26,6 @@ Expression* Ast::CreateBooleanLiteralExpression(bool value, SourceSpan span) {
 
   auto* result{expression.get()};
   expressions_.push_back(std::move(expression));
-
   return result;
 }
 
@@ -50,7 +49,6 @@ Expression* Ast::CreateIntegerLiteralExpression(u64 value, Type explicit_type,
 
   auto* result{expression.get()};
   expressions_.push_back(std::move(expression));
-
   return result;
 }
 
@@ -74,7 +72,6 @@ Expression* Ast::CreateFloatLiteralExpression(f64 value, Type explicit_type,
 
   auto* result{expression.get()};
   expressions_.push_back(std::move(expression));
-
   return result;
 }
 
@@ -87,7 +84,10 @@ Expression* Ast::CreateStringLiteralExpression(StringView value,
       .id = id,
       .kind = ExpressionKind::kStringLiteral,
       .span = span,
-      .string_literal = {.value = value},
+      .string_literal =
+          {
+              .value = value,
+          },
   })};
 
   auto* result{expression.get()};
@@ -147,15 +147,14 @@ Expression* Ast::CreateCallExpression(StringView callee,
   calls_.push_back(std::move(data));
 
   FELL_ASSERT(expressions_.size() <= kMaxValue<u32>);
-  const ExpressionId id{
-      .value = static_cast<u32>(expressions_.size()),
-  };
-
+  const ExpressionId id{.value = static_cast<u32>(expressions_.size())};
   auto expression{
       MakeUnique<Expression>(Expression{.id = id,
                                         .kind = ExpressionKind::kCall,
                                         .span = span,
-                                        .call = {.data = data_ptr}})};
+                                        .call = {
+                                            .data = data_ptr,
+                                        }})};
 
   Expression* const result{expression.get()};
   expressions_.push_back(std::move(expression));
@@ -178,9 +177,12 @@ Expression* Ast::CreateConditionalExpression(Expression* condition,
       .id = id,
       .kind = ExpressionKind::kConditional,
       .span = span,
-      .conditional = {.condition = condition,
-                      .then_expression = then_expression,
-                      .else_expression = else_expression},
+      .conditional =
+          {
+              .condition = condition,
+              .then_expression = then_expression,
+              .else_expression = else_expression,
+          },
   })};
 
   auto* result{expression.get()};
@@ -208,7 +210,11 @@ Expression* Ast::CreateBlockExpression(CompilationUnit* body,
       .id = id,
       .kind = ExpressionKind::kBlock,
       .span = span,
-      .block = {.body = body, .trailing_expression = trailing_expression},
+      .block =
+          {
+              .body = body,
+              .trailing_expression = trailing_expression,
+          },
   })};
 
   auto* result{expression.get()};
@@ -236,7 +242,6 @@ Expression* Ast::CreateUnaryExpression(UnaryOperator op, Expression* operand,
 
   auto* result{expression.get()};
   expressions_.push_back(std::move(expression));
-
   return result;
 }
 
@@ -328,15 +333,17 @@ Statement* Ast::CreateFunctionDeclarationStatement(
 
   FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
   const StatementId id{.value = static_cast<u32>(statements_.size())};
-  auto statement{MakeUnique<Statement>(Statement{
-      .id = id,
-      .kind = StatementKind::kFunctionDeclaration,
-      .span = span,
-      .function_declaration =
-          {
-              .data = data_ptr,
-          },
-  })};
+  auto statement{
+      MakeUnique<Statement>(Statement{
+          .id = id,
+          .kind = StatementKind::kFunctionDeclaration,
+          .span = span,
+          .function_declaration =
+              {
+                  .data = data_ptr,
+              },
+      }),
+  };
 
   Statement* const result{statement.get()};
   statements_.push_back(std::move(statement));
@@ -345,7 +352,10 @@ Statement* Ast::CreateFunctionDeclarationStatement(
 
 Statement* Ast::CreateReturnStatement(Expression* value, SourceSpan span) {
   FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
-  const StatementId id{.value = static_cast<u32>(statements_.size())};
+  const StatementId id{
+      .value = static_cast<u32>(statements_.size()),
+  };
+
   auto statement{MakeUnique<Statement>(Statement{
       .id = id,
       .kind = StatementKind::kReturn,
@@ -364,18 +374,23 @@ Statement* Ast::CreateReturnStatement(Expression* value, SourceSpan span) {
 Statement* Ast::CreateIfStatement(Expression* condition, Expression* then_block,
                                   Expression* else_block, SourceSpan span) {
   FELL_ASSERT(statements_.size() <= kMaxValue<u32>);
-  const StatementId id{.value = static_cast<u32>(statements_.size())};
-  auto statement{MakeUnique<Statement>(Statement{
-      .id = id,
-      .kind = StatementKind::kIf,
-      .span = span,
-      .if_ =
-          {
-              .condition = condition,
-              .then_block = then_block,
-              .else_block = else_block,
-          },
-  })};
+  const StatementId id{
+      .value = static_cast<u32>(statements_.size()),
+  };
+
+  auto statement{
+      MakeUnique<Statement>(Statement{
+          .id = id,
+          .kind = StatementKind::kIf,
+          .span = span,
+          .if_ =
+              {
+                  .condition = condition,
+                  .then_block = then_block,
+                  .else_block = else_block,
+              },
+      }),
+  };
 
   auto* result{statement.get()};
   statements_.push_back(std::move(statement));
@@ -413,20 +428,18 @@ Statement* Ast::CreateForStatement(Statement* initializer,
       .value = static_cast<u32>(statements_.size()),
   };
 
-  auto statement{
-      MakeUnique<Statement>(Statement{
-          .id = id,
-          .kind = StatementKind::kFor,
-          .span = span,
-          .for_ =
-              {
-                  .initializer = initializer,
-                  .condition = condition,
-                  .increment = increment,
-                  .body = body,
-              },
-      }),
-  };
+  auto statement{MakeUnique<Statement>(Statement{
+      .id = id,
+      .kind = StatementKind::kFor,
+      .span = span,
+      .for_ =
+          {
+              .initializer = initializer,
+              .condition = condition,
+              .increment = increment,
+              .body = body,
+          },
+  })};
 
   auto* result{statement.get()};
   statements_.push_back(std::move(statement));
@@ -473,13 +486,11 @@ Statement* Ast::CreateSwitchStatement(Expression* value,
                                       Vector<SwitchCase> cases,
                                       Expression* default_body,
                                       SourceSpan span) {
-  auto data{
-      MakeUnique<SwitchData>(SwitchData{
-          .value = value,
-          .cases = std::move(cases),
-          .default_body = default_body,
-      }),
-  };
+  auto data{MakeUnique<SwitchData>(SwitchData{
+      .value = value,
+      .cases = std::move(cases),
+      .default_body = default_body,
+  })};
 
   SwitchData* data_ptr{data.get()};
   switches_.push_back(std::move(data));
@@ -493,7 +504,10 @@ Statement* Ast::CreateSwitchStatement(Expression* value,
       .id = id,
       .kind = StatementKind::kSwitch,
       .span = span,
-      .switch_ = {.data = data_ptr},
+      .switch_ =
+          {
+              .data = data_ptr,
+          },
   })};
 
   auto* result{statement.get()};

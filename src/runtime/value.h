@@ -6,6 +6,8 @@
 namespace fell {
 
 enum class ValueType : u8 {
+  kInvalid,
+
   kBool,
 
   kS8,
@@ -29,7 +31,7 @@ struct RuntimeString {
 };
 
 union ValueData {
-  bool bool_value;
+  bool bool_value{false};
   s64 s64_value;
   u64 u64_value;
   f64 f64_value;
@@ -37,8 +39,8 @@ union ValueData {
 };
 
 struct Value {
-  ValueType type;
-  ValueData data;
+  ValueType type{ValueType::kInvalid};
+  ValueData data{};
 };
 
 String ToString(const Value& value);

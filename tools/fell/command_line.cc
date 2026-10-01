@@ -124,18 +124,22 @@ bool ParseDumpOption(StringView argument, CompileOptions& options) {
     options.dumps.Set(CompileDump::kTokens);
     return true;
   }
+
   if (argument == "--dump-ast") {
     options.dumps.Set(CompileDump::kAst);
     return true;
   }
+
   if (argument == "--dump-ir") {
     options.dumps.Set(CompileDump::kIr);
     return true;
   }
+
   if (argument == "--dump-bytecode") {
     options.dumps.Set(CompileDump::kBytecode);
     return true;
   }
+
   if (argument == "--dump-all") {
     options.dumps.Set(CompileDump::kTokens);
     options.dumps.Set(CompileDump::kAst);
@@ -154,12 +158,14 @@ bool ParseDumpOptions(int argc, char* argv[], int first_argument,
       return false;
     }
   }
+
   return true;
 }
 
-std::optional<Value> ExecuteModule(const BytecodeModule& module) {
+bool ExecuteModule(const BytecodeModule& module) {
   Vm vm{};
-  return vm.Execute(module);
+  vm.Execute(module);
+  return vm.Succeeded();
 }
 
 int RunSource(StringView source, const CompileOptions& options = {}) {
@@ -173,8 +179,7 @@ int RunSource(StringView source, const CompileOptions& options = {}) {
     return kExitFailure;
   }
 
-  ExecuteModule(result.program);
-  return kExitSuccess;
+  return ExecuteModule(result.program) ? kExitSuccess : kExitFailure;
 }
 
 int RunSourceFile(const char* path, const CompileOptions& options) {
@@ -266,8 +271,7 @@ int RunBytecodeFile(const char* path, const CompileOptions& options) {
     std::cout << "== Bytecode ==\n" << DumpBytecode(result.module);
   }
 
-  ExecuteModule(result.module);
-  return kExitSuccess;
+  return ExecuteModule(result.module) ? kExitSuccess : kExitFailure;
 }
 
 int RunFile(const char* path, const CompileOptions& options) {
@@ -282,6 +286,7 @@ int RunFile(const char* path, const CompileOptions& options) {
       std::cerr << "error: source dump options require a Fell source file\n";
       return kExitUsageError;
     }
+
     return RunBytecodeFile(path, options);
   }
 
@@ -353,6 +358,7 @@ int RunCommandLine(int argc, char* argv[]) {
       std::cerr << "error: invalid repl option\n";
       return kExitUsageError;
     }
+
     return RunRepl(options);
   }
 
@@ -367,6 +373,7 @@ int RunCommandLine(int argc, char* argv[]) {
       std::cerr << "error: invalid run option\n";
       return kExitUsageError;
     }
+
     return RunFile(argv[2], options);
   }
 
@@ -387,6 +394,7 @@ int RunCommandLine(int argc, char* argv[]) {
           std::cerr << "error: expected output file after -o\n";
           return kExitUsageError;
         }
+
         output = argv[++index];
         continue;
       }
@@ -405,6 +413,7 @@ int RunCommandLine(int argc, char* argv[]) {
       std::cerr << "usage: fell dump <tokens|ast|ir|bytecode> <file>\n";
       return kExitUsageError;
     }
+
     return DumpFile(argv[2], argv[3]);
   }
 

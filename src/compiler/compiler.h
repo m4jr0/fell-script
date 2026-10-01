@@ -10,21 +10,25 @@
 namespace fell {
 
 enum class CompileDump : u8 {
+  kNone = 0,
+
   kTokens = 1 << 0,
   kAst = 1 << 1,
   kIr = 1 << 2,
   kBytecode = 1 << 3,
+
+  kAll = (1 << 4) - 1,
 };
 
 class CompileDumpFlags {
  public:
-  constexpr bool Has(CompileDump flag) const {
+  [[nodiscard]] constexpr bool Has(CompileDump flag) const {
     return (bits_ & static_cast<u8>(flag)) != 0;
   }
 
   constexpr void Set(CompileDump flag) { bits_ |= static_cast<u8>(flag); }
 
-  constexpr bool HasSourceDump() const {
+  [[nodiscard]] constexpr bool HasSourceDump() const {
     return Has(CompileDump::kTokens) || Has(CompileDump::kAst) ||
            Has(CompileDump::kIr);
   }
@@ -46,7 +50,7 @@ struct CompileResult {
   String ir_dump;
   String bytecode_dump;
 
-  bool Succeeded() const;
+  [[nodiscard]] bool Succeeded() const;
 };
 
 class Compiler {

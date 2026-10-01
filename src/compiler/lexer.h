@@ -2,8 +2,8 @@
 
 #include "compiler/source_location.h"
 #include "compiler/token.h"
-#include "core/type.h"
 #include "core/string.h"
+#include "core/type.h"
 
 namespace fell {
 
@@ -15,8 +15,8 @@ class Lexer {
 
  private:
   char Advance();
-  char Peek() const;
-  char PeekNext() const;
+  [[nodiscard]] char Peek() const;
+  [[nodiscard]] char PeekNext() const;
   bool Consume(StringView text);
   bool Match(char expected);
 
@@ -24,15 +24,17 @@ class Lexer {
   void SkipLineComment();
   bool SkipBlockComment();
 
-  Token MakeToken(TokenType type, SourceLocation start) const;
+  [[nodiscard]] Token MakeToken(TokenType type, SourceLocation start) const;
 
   Token TokenizeNumber(SourceLocation start);
   Token TokenizeString(SourceLocation start);
   Token TokenizeIdentifier(SourceLocation start);
 
-  bool IsIdentifierStart(char character) const;
-  bool IsIdentifierContinue(char character) const;
-  TokenType GetIdentifierType(StringView lexeme) const;
+  [[nodiscard]] bool IsIdentifierStart(char character) const;
+  [[nodiscard]] bool IsIdentifierContinue(char character) const;
+  [[nodiscard]] TokenType CheckKeyword(StringView lexeme, usize start,
+                                       StringView rest, TokenType type) const;
+  [[nodiscard]] TokenType GetIdentifierType(StringView lexeme) const;
 
   StringView source_;
   usize position_{0};

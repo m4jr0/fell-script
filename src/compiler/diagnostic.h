@@ -9,12 +9,14 @@
 namespace fell {
 
 enum class DiagnosticSeverity {
+  kInvalid,
+
   kError,
   kWarning,
 };
 
 struct Diagnostic {
-  DiagnosticSeverity severity;
+  DiagnosticSeverity severity{DiagnosticSeverity::kInvalid};
   String message;
   std::optional<SourceSpan> span{};
 };
