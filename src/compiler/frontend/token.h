@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compiler/source_location.h"
+#include "compiler/frontend/source_location.h"
 #include "core/string.h"
 #include "core/type.h"
 

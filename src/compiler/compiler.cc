@@ -3,13 +3,14 @@
 #include <utility>
 
 #include "bytecode/dump.h"
-#include "compiler/ast.h"
-#include "compiler/bytecode_compiler.h"
-#include "compiler/dump.h"
-#include "compiler/ir_builder.h"
-#include "compiler/lexer.h"
-#include "compiler/parser.h"
-#include "compiler/semantic_analyzer.h"
+#include "compiler/backend/bytecode_compiler.h"
+#include "compiler/frontend/ast.h"
+#include "compiler/frontend/lexer.h"
+#include "compiler/frontend/parser.h"
+#include "compiler/frontend/semantic_analyzer.h"
+#include "compiler/ir/dump.h"
+#include "compiler/ir/ir_builder.h"
+#include "compiler/ir/ir_verifier.h"
 
 namespace fell {
 namespace {
@@ -102,6 +103,8 @@ CompileResult Compiler::CompileUnit(const CompilationUnit& unit,
   IrBuilder ir_builder{};
   const IrProgram ir{
       ir_builder.Build(unit, semantic_result.model, return_last_expression)};
+
+  VerifyIr(ir);
 
   if (options.dumps.Has(CompileDump::kIr)) {
     result.ir_dump = DumpIr(ir);

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compiler/ast.h"
-#include "compiler/ir.h"
+#include "compiler/frontend/ast.h"
+#include "compiler/ir/ir.h"
 #include "core/string.h"
 
 namespace fell {

@@ -1,4 +1,4 @@
-#include "compiler/diagnostic.h"
+#include "compiler/frontend/diagnostic.h"
 
 #include "core/assert.h"
 

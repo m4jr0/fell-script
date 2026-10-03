@@ -1,8 +1,8 @@
 #pragma once
 
-#include "compiler/ast.h"
-#include "compiler/diagnostic.h"
-#include "compiler/lexer.h"
+#include "compiler/frontend/ast.h"
+#include "compiler/frontend/diagnostic.h"
+#include "compiler/frontend/lexer.h"
 #include "core/vector.h"
 
 namespace fell {

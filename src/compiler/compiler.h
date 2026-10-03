@@ -1,8 +1,8 @@
 #pragma once
 
 #include "bytecode/bytecode.h"
-#include "compiler/ast.h"
-#include "compiler/diagnostic.h"
+#include "compiler/frontend/ast.h"
+#include "compiler/frontend/diagnostic.h"
 #include "core/string.h"
 #include "core/type.h"
 #include "core/vector.h"

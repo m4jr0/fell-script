@@ -40,18 +40,23 @@ target_include_directories(fell_core PUBLIC
 fell_configure_target(fell_core)
 
 add_library(fell_compiler
-    src/compiler/ast.cc
-    src/compiler/bytecode_compiler.cc
+    src/compiler/frontend/ast.cc
+    src/compiler/backend/bytecode_compiler.cc
     src/compiler/compiler.cc
-    src/compiler/diagnostic.cc
-    src/compiler/dump.cc
-    src/compiler/ir.cc
-    src/compiler/ir_builder.cc
-    src/compiler/lexer.cc
-    src/compiler/parser.cc
-    src/compiler/semantic_analyzer.cc
-    src/compiler/token.cc
-    src/compiler/type.cc
+    src/compiler/ir/analysis/control_flow_graph.cc
+    src/compiler/ir/analysis/control_flow_traversal.cc
+    src/compiler/frontend/diagnostic.cc
+    src/compiler/ir/analysis/dominator_tree.cc
+    src/compiler/ir/analysis/dominance_frontier.cc
+    src/compiler/ir/dump.cc
+    src/compiler/ir/ir.cc
+    src/compiler/ir/ir_builder.cc
+    src/compiler/ir/ir_verifier.cc
+    src/compiler/frontend/lexer.cc
+    src/compiler/frontend/parser.cc
+    src/compiler/frontend/semantic_analyzer.cc
+    src/compiler/frontend/token.cc
+    src/compiler/frontend/type.cc
 )
 
 target_include_directories(fell_compiler PUBLIC

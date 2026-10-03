@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compiler/source_location.h"
-#include "compiler/token.h"
+#include "compiler/frontend/source_location.h"
+#include "compiler/frontend/token.h"
 #include "core/string.h"
 #include "core/type.h"
 

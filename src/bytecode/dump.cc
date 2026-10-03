@@ -370,7 +370,8 @@ String DumpBytecode(const BytecodeModule& module) {
         break;
 
       case Opcode::kMove:
-        output << " r" << instruction.move.destination << ", r" << instruction.move.source;
+        output << " r" << instruction.move.destination << ", r"
+               << instruction.move.source;
         break;
 
       case Opcode::kJump:
@@ -378,20 +379,24 @@ String DumpBytecode(const BytecodeModule& module) {
         break;
 
       case Opcode::kJumpIfFalse:
-        output << " r" << instruction.jump_if_false.condition << ", " << instruction.jump_if_false.target;
+        output << " r" << instruction.jump_if_false.condition << ", "
+               << instruction.jump_if_false.target;
         break;
 
       case Opcode::kCall:
-        output << " r" << instruction.call.destination << ", fn#" << instruction.call.function << " (";
+        output << " r" << instruction.call.destination << ", fn#"
+               << instruction.call.function << " (";
         for (u32 i{0}; i < instruction.call.argument_count; ++i) {
           if (i != 0) output << ", ";
-          output << "r" << module.call_arguments[instruction.call.argument_offset + i];
+          output << "r"
+                 << module.call_arguments[instruction.call.argument_offset + i];
         }
         output << ")";
         break;
 
       case Opcode::kCallNative:
-        output << " native#" << instruction.call_native.function << ", r" << instruction.call_native.argument;
+        output << " native#" << instruction.call_native.function << ", r"
+               << instruction.call_native.argument;
         break;
 
       case Opcode::kConvertS8ToS16:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compiler/type.h"
+#include "compiler/frontend/type.h"
 #include "core/string.h"
 #include "core/type.h"
 #include "core/vector.h"

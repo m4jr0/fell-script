@@ -1,4 +1,4 @@
-#include "compiler/lexer.h"
+#include "compiler/frontend/lexer.h"
 
 #include "core/assert.h"
 #include "core/char.h"

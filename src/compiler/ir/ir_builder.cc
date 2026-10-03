@@ -1,4 +1,4 @@
-#include "compiler/ir_builder.h"
+#include "compiler/ir/ir_builder.h"
 
 #include <utility>
 
@@ -11,12 +11,10 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
                            const SemanticModel& semantics,
                            bool return_last_expression) {
   IrProgram program{};
-
   program.global_count = semantics.global_count();
 
   program.main.entry = CreateBlock(program.main);
   program.main.local_count = semantics.local_count();
-
   SetCurrentBlock(program.main.entry);
 
   IrValueId last_value{};
@@ -29,50 +27,44 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
 
     if (statement->kind == StatementKind::kExpression) {
       last_value = BuildExpression(*statement->expression.expression, semantics,
-                                   program);
-
+                                   program, program.main);
       has_value =
           semantics.Get(*statement->expression.expression).type != Type::kUnit;
     } else {
-      BuildStatement(*statement, semantics, program);
-
+      BuildStatement(*statement, semantics, program, program.main);
       has_value = false;
     }
   }
 
-  if (return_last_expression && has_value) {
-    EmitInstruction(procedure, {
-                                   .opcode = IrOpcode::kReturn,
-                                   .return_ =
-                                       {
-                                           .value = last_value,
-                                       },
-                               });
+  if (!IsBlockTerminated(GetCurrentBlock(program.main))) {
+    if (return_last_expression && has_value) {
+      EmitReturn(program.main, last_value);
+    } else {
+      EmitExit(program.main);
+    }
   }
 
-  program.main_instruction_count =
-      static_cast<u32>(program.instructions.size());
-
   for (const FunctionSemantics& function : semantics.functions()) {
-    const IrLabelId entry{AllocateLabel()};
-
-    Vector<IrLocalId> parameter_slots;
+    IrFunction ir_function{
+        .id = static_cast<IrFunctionId>(program.functions.size()),
+        .parameter_local_slots = {},
+        .return_type = function.return_type,
+        .procedure = {},
+    };
 
     for (u32 slot : function.parameter_local_slots) {
-      parameter_slots.push_back(slot);
+      ir_function.parameter_local_slots.push_back(slot);
     }
 
-    program.functions.push_back({
-        .id = static_cast<IrFunctionId>(program.functions.size()),
-        .entry = entry,
-        .parameter_local_slots = std::move(parameter_slots),
-        .return_type = function.return_type,
-    });
-
-    EmitLabel(program, entry);
+    ir_function.procedure.entry = CreateBlock(ir_function.procedure);
+    ir_function.procedure.local_count = semantics.local_count();
+    SetCurrentBlock(ir_function.procedure.entry);
 
     BuildExpression(*function.declaration->function_declaration.data->body,
-                    semantics, program);
+                    semantics, program, ir_function.procedure);
+
+    FELL_ASSERT(IsBlockTerminated(GetCurrentBlock(ir_function.procedure)));
+    program.functions.push_back(std::move(ir_function));
   }
 
   return program;
@@ -86,18 +78,19 @@ void IrBuilder::BuildStatement(const Statement& statement,
       FELL_UNREACHABLE();
 
     case StatementKind::kExpression:
-      BuildExpression(*statement.expression.expression, semantics, program);
+      BuildExpression(*statement.expression.expression, semantics, program,
+                      procedure);
       return;
 
     case StatementKind::kVariableDeclaration: {
       const auto& declaration{statement.variable_declaration};
 
-      IrValueId value{
-          BuildExpression(*declaration.initializer, semantics, program)};
+      IrValueId value{BuildExpression(*declaration.initializer, semantics,
+                                      program, procedure)};
 
       const auto& statement_semantics{semantics.Get(statement)};
 
-      value = ConvertIfNeeded(value, statement_semantics.type, program);
+      value = ConvertIfNeeded(value, statement_semantics.type, procedure);
 
       if (statement_semantics.binding.storage == VariableStorage::kGlobal) {
         EmitInstruction(procedure,
@@ -128,18 +121,12 @@ void IrBuilder::BuildStatement(const Statement& statement,
       return;
 
     case StatementKind::kReturn: {
-      IrValueId value{
-          BuildExpression(*statement.return_.value, semantics, program)};
+      IrValueId value{BuildExpression(*statement.return_.value, semantics,
+                                      program, procedure)};
 
-      value = ConvertIfNeeded(value, semantics.Get(statement).type, program);
+      value = ConvertIfNeeded(value, semantics.Get(statement).type, procedure);
 
-      EmitInstruction(procedure, {
-                                     .opcode = IrOpcode::kReturn,
-                                     .return_ =
-                                         {
-                                             .value = value,
-                                         },
-                                 });
+      EmitReturn(procedure, value);
 
       return;
     }
@@ -155,7 +142,11 @@ void IrBuilder::BuildStatement(const Statement& statement,
       EmitBranch(procedure, condition, then_block, else_block);
       SetCurrentBlock(then_block);
       BuildExpression(*statement.if_.then_block, semantics, program, procedure);
-      EmitJump(procedure, end_block);
+
+      if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+        EmitJump(procedure, end_block);
+      }
+
       SetCurrentBlock(else_block);
 
       if (statement.if_.else_block != nullptr) {
@@ -182,7 +173,6 @@ void IrBuilder::BuildStatement(const Statement& statement,
       const IrValueId condition{BuildExpression(*statement.while_.condition,
                                                 semantics, program, procedure)};
       EmitBranch(procedure, condition, body_block, end_block);
-
       SetCurrentBlock(body_block);
 
       loop_stack_.push_back({
@@ -190,8 +180,7 @@ void IrBuilder::BuildStatement(const Statement& statement,
           .break_target = end_block,
       });
 
-      BuildExpression(...);
-
+      BuildExpression(*statement.while_.body, semantics, program, procedure);
       loop_stack_.pop_back();
 
       if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
@@ -204,104 +193,80 @@ void IrBuilder::BuildStatement(const Statement& statement,
 
     case StatementKind::kFor: {
       if (statement.for_.initializer != nullptr) {
-        BuildStatement(*statement.for_.initializer, semantics, program);
+        BuildStatement(*statement.for_.initializer, semantics, program,
+                       procedure);
       }
 
-      const IrLabelId condition_label{AllocateLabel()};
-      const IrLabelId increment_label{AllocateLabel()};
-      const IrLabelId end_label{AllocateLabel()};
+      const IrBlockId condition_block{CreateBlock(procedure)};
+      const IrBlockId body_block{CreateBlock(procedure)};
+      const IrBlockId increment_block{CreateBlock(procedure)};
+      const IrBlockId end_block{CreateBlock(procedure)};
 
-      EmitLabel(program, condition_label);
+      EmitJump(procedure, condition_block);
+      SetCurrentBlock(condition_block);
 
       if (statement.for_.condition != nullptr) {
-        const IrValueId condition{
-            BuildExpression(*statement.for_.condition, semantics, program)};
-
-        EmitInstruction(procedure, {
-                                       .opcode = IrOpcode::kJumpIfFalse,
-                                       .jump_if_false =
-                                           {
-                                               .condition = condition,
-                                               .target = end_label,
-                                           },
-                                   });
+        const IrValueId condition{BuildExpression(
+            *statement.for_.condition, semantics, program, procedure)};
+        EmitBranch(procedure, condition, body_block, end_block);
+      } else {
+        EmitJump(procedure, body_block);
       }
 
+      SetCurrentBlock(body_block);
       loop_stack_.push_back({
-          .continue_target = increment_label,
-          .break_target = end_label,
+          .continue_target = increment_block,
+          .break_target = end_block,
       });
 
-      BuildExpression(*statement.for_.body, semantics, program);
-
+      BuildExpression(*statement.for_.body, semantics, program, procedure);
       loop_stack_.pop_back();
 
-      EmitLabel(program, increment_label);
-
-      if (statement.for_.increment != nullptr) {
-        BuildExpression(*statement.for_.increment, semantics, program);
+      if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+        EmitJump(procedure, increment_block);
       }
 
-      EmitInstruction(procedure, {
-                                     .opcode = IrOpcode::kJump,
-                                     .jump =
-                                         {
-                                             .target = condition_label,
-                                         },
-                                 });
+      SetCurrentBlock(increment_block);
 
-      EmitLabel(program, end_label);
+      if (statement.for_.increment != nullptr) {
+        BuildExpression(*statement.for_.increment, semantics, program,
+                        procedure);
+      }
 
+      if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+        EmitJump(procedure, condition_block);
+      }
+
+      SetCurrentBlock(end_block);
       return;
     }
 
     case StatementKind::kBreak:
       FELL_ASSERT(!loop_stack_.empty());
-
-      EmitInstruction(procedure,
-                      {
-                          .opcode = IrOpcode::kJump,
-                          .jump =
-                              {
-                                  .target = loop_stack_.back().break_target,
-                              },
-                      });
-
+      EmitJump(procedure, loop_stack_.back().break_target);
       return;
 
     case StatementKind::kContinue:
       FELL_ASSERT(!loop_stack_.empty());
-
-      EmitInstruction(procedure,
-                      {
-                          .opcode = IrOpcode::kJump,
-                          .jump =
-                              {
-                                  .target = loop_stack_.back().continue_target,
-                              },
-                      });
-
+      EmitJump(procedure, loop_stack_.back().continue_target);
       return;
 
     case StatementKind::kSwitch: {
       const SwitchData& data{*statement.switch_.data};
-
       const IrValueId switch_value{
-          BuildExpression(*data.value, semantics, program)};
-
-      const IrLabelId end_label{AllocateLabel()};
+          BuildExpression(*data.value, semantics, program, procedure)};
+      const IrBlockId end_block{CreateBlock(procedure)};
 
       for (const SwitchCase& case_ : data.cases) {
-        const IrLabelId next_label{AllocateLabel()};
+        const IrBlockId case_block{CreateBlock(procedure)};
+        const IrBlockId next_block{CreateBlock(procedure)};
 
-        IrValueId case_value{BuildExpression(*case_.value, semantics, program)};
+        IrValueId case_value{
+            BuildExpression(*case_.value, semantics, program, procedure)};
+        const Type switch_type{GetIrValue(procedure, switch_value).type};
+        case_value = ConvertIfNeeded(case_value, switch_type, procedure);
 
-        const Type switch_type{GetIrValue(program, switch_value).type};
-
-        case_value = ConvertIfNeeded(case_value, switch_type, program);
-
-        const IrValueId matches{AllocateValue(program, Type::kBool)};
-
+        const IrValueId matches{AllocateValue(procedure, Type::kBool)};
         EmitInstruction(procedure, {
                                        .opcode = IrOpcode::kEqual,
                                        .binary =
@@ -311,35 +276,27 @@ void IrBuilder::BuildStatement(const Statement& statement,
                                                .right = case_value,
                                            },
                                    });
+        EmitBranch(procedure, matches, case_block, next_block);
 
-        EmitInstruction(procedure, {
-                                       .opcode = IrOpcode::kJumpIfFalse,
-                                       .jump_if_false =
-                                           {
-                                               .condition = matches,
-                                               .target = next_label,
-                                           },
-                                   });
+        SetCurrentBlock(case_block);
+        BuildExpression(*case_.body, semantics, program, procedure);
 
-        BuildExpression(*case_.body, semantics, program);
+        if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+          EmitJump(procedure, end_block);
+        }
 
-        EmitInstruction(procedure, {
-                                       .opcode = IrOpcode::kJump,
-                                       .jump =
-                                           {
-                                               .target = end_label,
-                                           },
-                                   });
-
-        EmitLabel(program, next_label);
+        SetCurrentBlock(next_block);
       }
 
       if (data.default_body != nullptr) {
-        BuildExpression(*data.default_body, semantics, program);
+        BuildExpression(*data.default_body, semantics, program, procedure);
       }
 
-      EmitLabel(program, end_label);
+      if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+        EmitJump(procedure, end_block);
+      }
 
+      SetCurrentBlock(end_block);
       return;
     }
   }
@@ -360,9 +317,9 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       FELL_ASSERT(type != Type::kError);
 
-      const IrValueId destination{AllocateValue(program, type)};
+      const IrValueId destination{AllocateValue(procedure, type)};
 
-      EmitBooleanConstant(program, destination,
+      EmitBooleanConstant(procedure, destination,
                           expression.boolean_literal.value);
 
       return destination;
@@ -373,9 +330,9 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       FELL_ASSERT(type != Type::kError);
 
-      const IrValueId destination{AllocateValue(program, type)};
+      const IrValueId destination{AllocateValue(procedure, type)};
 
-      EmitIntegerConstant(program, destination,
+      EmitIntegerConstant(procedure, destination,
                           expression.integer_literal.value, type);
 
       return destination;
@@ -386,18 +343,19 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       FELL_ASSERT(type != Type::kError);
 
-      const IrValueId destination{AllocateValue(program, type)};
+      const IrValueId destination{AllocateValue(procedure, type)};
 
-      EmitFloatConstant(program, destination, expression.float_literal.value,
+      EmitFloatConstant(procedure, destination, expression.float_literal.value,
                         type);
 
       return destination;
     }
 
     case ExpressionKind::kStringLiteral: {
-      const IrValueId destination{AllocateValue(program, Type::kString)};
+      const IrValueId destination{AllocateValue(procedure, Type::kString)};
 
-      EmitStringConstant(program, destination, expression.string_literal.value);
+      EmitStringConstant(program, procedure, destination,
+                         expression.string_literal.value);
 
       return destination;
     }
@@ -406,7 +364,7 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       const auto& expression_semantics{semantics.Get(expression)};
 
       const IrValueId destination{
-          AllocateValue(program, expression_semantics.type)};
+          AllocateValue(procedure, expression_semantics.type)};
 
       if (expression_semantics.binding.storage == VariableStorage::kGlobal) {
         EmitInstruction(procedure,
@@ -436,10 +394,10 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
     case ExpressionKind::kAssignment: {
       const auto& expression_semantics{semantics.Get(expression)};
 
-      IrValueId value{
-          BuildExpression(*expression.assignment.value, semantics, program)};
+      IrValueId value{BuildExpression(*expression.assignment.value, semantics,
+                                      program, procedure)};
 
-      value = ConvertIfNeeded(value, expression_semantics.type, program);
+      value = ConvertIfNeeded(value, expression_semantics.type, procedure);
 
       if (expression_semantics.binding.storage == VariableStorage::kGlobal) {
         EmitInstruction(procedure,
@@ -477,8 +435,8 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
         case FunctionStorage::kNative: {
           FELL_ASSERT(call.arguments.size() == 1);
 
-          const IrValueId argument{
-              BuildExpression(*call.arguments[0], semantics, program)};
+          const IrValueId argument{BuildExpression(
+              *call.arguments[0], semantics, program, procedure)};
 
           EmitInstruction(
               procedure, {
@@ -503,20 +461,20 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
               semantics.functions()[call_semantics.function.slot]};
 
           const u32 argument_offset{
-              static_cast<u32>(program.call_arguments.size())};
+              static_cast<u32>(procedure.call_arguments.size())};
 
           for (usize index{0}; index < call.arguments.size(); ++index) {
-            IrValueId argument{
-                BuildExpression(*call.arguments[index], semantics, program)};
+            IrValueId argument{BuildExpression(*call.arguments[index],
+                                               semantics, program, procedure)};
 
             argument = ConvertIfNeeded(
-                argument, function.parameter_types[index], program);
+                argument, function.parameter_types[index], procedure);
 
-            program.call_arguments.push_back(argument);
+            procedure.call_arguments.push_back(argument);
           }
 
           const IrValueId destination{
-              AllocateValue(program, call_semantics.type)};
+              AllocateValue(procedure, call_semantics.type)};
 
           EmitInstruction(procedure,
                           {
@@ -541,30 +499,20 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
     case ExpressionKind::kConditional: {
       const auto& conditional{expression.conditional};
-
       const Type result_type{semantics.Get(expression).type};
-      const IrValueId destination{AllocateValue(program, result_type)};
+      const IrValueId destination{AllocateValue(procedure, result_type)};
+      const IrValueId condition{BuildExpression(*conditional.condition,
+                                                semantics, program, procedure)};
 
-      const IrValueId condition{
-          BuildExpression(*conditional.condition, semantics, program)};
+      const IrBlockId then_block{CreateBlock(procedure)};
+      const IrBlockId else_block{CreateBlock(procedure)};
+      const IrBlockId end_block{CreateBlock(procedure)};
+      EmitBranch(procedure, condition, then_block, else_block);
 
-      const IrLabelId else_label{AllocateLabel()};
-      const IrLabelId end_label{AllocateLabel()};
-
-      EmitInstruction(procedure, {
-                                     .opcode = IrOpcode::kJumpIfFalse,
-                                     .jump_if_false =
-                                         {
-                                             .condition = condition,
-                                             .target = else_label,
-                                         },
-                                 });
-
-      IrValueId then_value{
-          BuildExpression(*conditional.then_expression, semantics, program)};
-
-      then_value = ConvertIfNeeded(then_value, result_type, program);
-
+      SetCurrentBlock(then_block);
+      IrValueId then_value{BuildExpression(*conditional.then_expression,
+                                           semantics, program, procedure)};
+      then_value = ConvertIfNeeded(then_value, result_type, procedure);
       EmitInstruction(procedure, {
                                      .opcode = IrOpcode::kMove,
                                      .move =
@@ -573,22 +521,12 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
                                              .source = then_value,
                                          },
                                  });
+      EmitJump(procedure, end_block);
 
-      EmitInstruction(procedure, {
-                                     .opcode = IrOpcode::kJump,
-                                     .jump =
-                                         {
-                                             .target = end_label,
-                                         },
-                                 });
-
-      EmitLabel(program, else_label);
-
-      IrValueId else_value{
-          BuildExpression(*conditional.else_expression, semantics, program)};
-
-      else_value = ConvertIfNeeded(else_value, result_type, program);
-
+      SetCurrentBlock(else_block);
+      IrValueId else_value{BuildExpression(*conditional.else_expression,
+                                           semantics, program, procedure)};
+      else_value = ConvertIfNeeded(else_value, result_type, procedure);
       EmitInstruction(procedure, {
                                      .opcode = IrOpcode::kMove,
                                      .move =
@@ -597,23 +535,28 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
                                              .source = else_value,
                                          },
                                  });
+      EmitJump(procedure, end_block);
 
-      EmitLabel(program, end_label);
-
+      SetCurrentBlock(end_block);
       return destination;
     }
 
     case ExpressionKind::kBlock: {
       for (const Statement* statement : expression.block.body->statements) {
-        BuildStatement(*statement, semantics, program);
+        if (IsBlockTerminated(GetCurrentBlock(procedure))) {
+          break;
+        }
+
+        BuildStatement(*statement, semantics, program, procedure);
       }
 
-      if (expression.block.trailing_expression == nullptr) {
+      if (expression.block.trailing_expression == nullptr ||
+          IsBlockTerminated(GetCurrentBlock(procedure))) {
         return {};
       }
 
       return BuildExpression(*expression.block.trailing_expression, semantics,
-                             program);
+                             program, procedure);
     }
 
     case ExpressionKind::kUnary: {
@@ -629,22 +572,22 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
         FELL_ASSERT(type != Type::kError);
         FELL_ASSERT(IsSignedInteger(type));
 
-        const IrValueId destination{AllocateValue(program, type)};
+        const IrValueId destination{AllocateValue(procedure, type)};
 
-        EmitNegatedIntegerConstant(program, destination,
+        EmitNegatedIntegerConstant(procedure, destination,
                                    unary.operand->integer_literal.value, type);
 
         return destination;
       }
 
       const IrValueId operand{
-          BuildExpression(*unary.operand, semantics, program)};
+          BuildExpression(*unary.operand, semantics, program, procedure)};
 
       const Type result_type{semantics.Get(expression).type};
 
       FELL_ASSERT(result_type != Type::kError);
 
-      const IrValueId destination{AllocateValue(program, result_type)};
+      const IrValueId destination{AllocateValue(procedure, result_type)};
 
       IrOpcode opcode{};
 
@@ -678,102 +621,51 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       if (binary.op == BinaryOperator::kLogicalAnd ||
           binary.op == BinaryOperator::kLogicalOr) {
-        const IrValueId destination{AllocateValue(program, Type::kBool)};
-        const IrValueId left{BuildExpression(*binary.left, semantics, program)};
-
-        const IrLabelId rhs_label{AllocateLabel()};
-        const IrLabelId false_label{AllocateLabel()};
-        const IrLabelId end_label{AllocateLabel()};
+        const IrValueId destination{AllocateValue(procedure, Type::kBool)};
+        const IrValueId left{
+            BuildExpression(*binary.left, semantics, program, procedure)};
+        const IrBlockId rhs_block{CreateBlock(procedure)};
+        const IrBlockId short_circuit_block{CreateBlock(procedure)};
+        const IrBlockId end_block{CreateBlock(procedure)};
 
         if (binary.op == BinaryOperator::kLogicalAnd) {
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kJumpIfFalse,
-                                         .jump_if_false =
-                                             {
-                                                 .condition = left,
-                                                 .target = false_label,
-                                             },
-                                     });
-
-          const IrValueId right{
-              BuildExpression(*binary.right, semantics, program)};
-
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kMove,
-                                         .move =
-                                             {
-                                                 .destination = destination,
-                                                 .source = right,
-                                             },
-                                     });
-
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kJump,
-                                         .jump =
-                                             {
-                                                 .target = end_label,
-                                             },
-                                     });
-
-          EmitLabel(program, false_label);
-
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kMove,
-                                         .move =
-                                             {
-                                                 .destination = destination,
-                                                 .source = left,
-                                             },
-                                     });
+          EmitBranch(procedure, left, rhs_block, short_circuit_block);
         } else {
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kJumpIfFalse,
-                                         .jump_if_false =
-                                             {
-                                                 .condition = left,
-                                                 .target = rhs_label,
-                                             },
-                                     });
-
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kMove,
-                                         .move =
-                                             {
-                                                 .destination = destination,
-                                                 .source = left,
-                                             },
-                                     });
-
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kJump,
-                                         .jump =
-                                             {
-                                                 .target = end_label,
-                                             },
-                                     });
-
-          EmitLabel(program, rhs_label);
-
-          const IrValueId right{
-              BuildExpression(*binary.right, semantics, program)};
-
-          EmitInstruction(procedure, {
-                                         .opcode = IrOpcode::kMove,
-                                         .move =
-                                             {
-                                                 .destination = destination,
-                                                 .source = right,
-                                             },
-                                     });
+          EmitBranch(procedure, left, short_circuit_block, rhs_block);
         }
 
-        EmitLabel(program, end_label);
+        SetCurrentBlock(short_circuit_block);
+        EmitInstruction(procedure, {
+                                       .opcode = IrOpcode::kMove,
+                                       .move =
+                                           {
+                                               .destination = destination,
+                                               .source = left,
+                                           },
+                                   });
+        EmitJump(procedure, end_block);
 
+        SetCurrentBlock(rhs_block);
+        const IrValueId right{
+            BuildExpression(*binary.right, semantics, program, procedure)};
+        EmitInstruction(procedure, {
+                                       .opcode = IrOpcode::kMove,
+                                       .move =
+                                           {
+                                               .destination = destination,
+                                               .source = right,
+                                           },
+                                   });
+        EmitJump(procedure, end_block);
+
+        SetCurrentBlock(end_block);
         return destination;
       }
 
-      IrValueId left{BuildExpression(*binary.left, semantics, program)};
-      IrValueId right{BuildExpression(*binary.right, semantics, program)};
+      IrValueId left{
+          BuildExpression(*binary.left, semantics, program, procedure)};
+      IrValueId right{
+          BuildExpression(*binary.right, semantics, program, procedure)};
 
       const auto& expression_semantics{semantics.Get(expression)};
 
@@ -785,10 +677,10 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       FELL_ASSERT(result_type != Type::kError);
 
-      left = ConvertIfNeeded(left, operand_type, program);
-      right = ConvertIfNeeded(right, operand_type, program);
+      left = ConvertIfNeeded(left, operand_type, procedure);
+      right = ConvertIfNeeded(right, operand_type, procedure);
 
-      const IrValueId destination{AllocateValue(program, result_type)};
+      const IrValueId destination{AllocateValue(procedure, result_type)};
 
       IrOpcode opcode{};
 
@@ -858,15 +750,14 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
   FELL_UNREACHABLE();
 }
 
-IrValueId IrBuilder::AllocateValue(IrProcedure& procedure, Type type);
-{
-  FELL_ASSERT(program.values.size() < kMaxValue<u32>);
+IrValueId IrBuilder::AllocateValue(IrProcedure& procedure, Type type) {
+  FELL_ASSERT(procedure.values.size() < kMaxValue<u32>);
 
   const IrValueId id{
-      .value = static_cast<u32>(program.values.size()),
+      .value = static_cast<u32>(procedure.values.size()),
   };
 
-  program.values.push_back({
+  procedure.values.push_back({
       .type = type,
   });
 
@@ -874,8 +765,8 @@ IrValueId IrBuilder::AllocateValue(IrProcedure& procedure, Type type);
 }
 
 IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
-                                     IrProgram& program) {
-  const Type source_type{GetIrValue(program, source).type};
+                                     IrProcedure& procedure) {
+  const Type source_type{GetIrValue(procedure, source).type};
 
   if (source_type == destination_type) {
     return source;
@@ -883,7 +774,7 @@ IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
 
   FELL_ASSERT(CanImplicitlyConvert(source_type, destination_type));
 
-  const IrValueId destination{AllocateValue(program, destination_type)};
+  const IrValueId destination{AllocateValue(procedure, destination_type)};
 
   EmitInstruction(procedure, {
                                  .opcode = IrOpcode::kConvert,
@@ -897,17 +788,79 @@ IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
   return destination;
 }
 IrBlockId IrBuilder::CreateBlock(IrProcedure& procedure) {
+  FELL_ASSERT(procedure.blocks.size() < kMaxValue<u32>);
   const IrBlockId id{static_cast<IrBlockId>(procedure.blocks.size())};
   procedure.blocks.emplace_back();
   return id;
+}
+
+IrBasicBlock& IrBuilder::GetBlock(IrProcedure& procedure, IrBlockId block) {
+  FELL_ASSERT(block < procedure.blocks.size());
+  return procedure.blocks[block];
+}
+
+void IrBuilder::SetCurrentBlock(IrBlockId block) { current_block_ = block; }
+
+IrBasicBlock& IrBuilder::GetCurrentBlock(IrProcedure& procedure) {
+  FELL_ASSERT(current_block_ != kInvalidIrBlockId);
+  return GetBlock(procedure, current_block_);
 }
 
 bool IrBuilder::IsBlockTerminated(const IrBasicBlock& block) {
   return block.terminator.kind != IrTerminatorKind::kInvalid;
 }
 
-void IrBuilder::EmitBooleanConstant(IrProgram& program, IrValueId destination,
-                                    bool value) {
+void IrBuilder::EmitInstruction(IrProcedure& procedure,
+                                const IrInstruction& instruction) {
+  IrBasicBlock& block{GetCurrentBlock(procedure)};
+  FELL_ASSERT(!IsBlockTerminated(block));
+  block.instructions.push_back(instruction);
+}
+
+void IrBuilder::EmitJump(IrProcedure& procedure, IrBlockId target) {
+  IrBasicBlock& block{GetCurrentBlock(procedure)};
+  FELL_ASSERT(!IsBlockTerminated(block));
+  block.terminator = {
+      .kind = IrTerminatorKind::kJump,
+      .jump = {.target = target},
+  };
+}
+
+void IrBuilder::EmitBranch(IrProcedure& procedure, IrValueId condition,
+                           IrBlockId true_target, IrBlockId false_target) {
+  IrBasicBlock& block{GetCurrentBlock(procedure)};
+  FELL_ASSERT(!IsBlockTerminated(block));
+  block.terminator = {
+      .kind = IrTerminatorKind::kBranch,
+      .branch =
+          {
+              .condition = condition,
+              .true_target = true_target,
+              .false_target = false_target,
+          },
+  };
+}
+
+void IrBuilder::EmitReturn(IrProcedure& procedure, IrValueId value) {
+  IrBasicBlock& block{GetCurrentBlock(procedure)};
+  FELL_ASSERT(!IsBlockTerminated(block));
+  block.terminator = {
+      .kind = IrTerminatorKind::kReturn,
+      .return_ = {.value = value},
+  };
+}
+
+void IrBuilder::EmitExit(IrProcedure& procedure) {
+  IrBasicBlock& block{GetCurrentBlock(procedure)};
+  FELL_ASSERT(!IsBlockTerminated(block));
+  block.terminator = {
+      .kind = IrTerminatorKind::kExit,
+      .jump = {},
+  };
+}
+
+void IrBuilder::EmitBooleanConstant(IrProcedure& procedure,
+                                    IrValueId destination, bool value) {
   IrConstant constant{
       .destination = destination,
       .bool_value = value,
@@ -919,8 +872,9 @@ void IrBuilder::EmitBooleanConstant(IrProgram& program, IrValueId destination,
                              });
 }
 
-void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
-                                    u64 value, Type type) {
+void IrBuilder::EmitIntegerConstant(IrProcedure& procedure,
+                                    IrValueId destination, u64 value,
+                                    Type type) {
   IrConstant constant{
       .destination = destination,
       .s64_value = 0,
@@ -975,7 +929,7 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
                              });
 }
 
-void IrBuilder::EmitNegatedIntegerConstant(IrProgram& program,
+void IrBuilder::EmitNegatedIntegerConstant(IrProcedure& procedure,
                                            IrValueId destination, u64 magnitude,
                                            Type type) {
   FELL_ASSERT(IsSignedInteger(type));
@@ -998,7 +952,7 @@ void IrBuilder::EmitNegatedIntegerConstant(IrProgram& program,
                              });
 }
 
-void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
+void IrBuilder::EmitFloatConstant(IrProcedure& procedure, IrValueId destination,
                                   f64 value, Type type) {
   IrConstant constant{
       .destination = destination,
@@ -1036,8 +990,8 @@ void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
                              });
 }
 
-void IrBuilder::EmitStringConstant(IrProgram& program, IrValueId destination,
-                                   StringView value) {
+void IrBuilder::EmitStringConstant(IrProgram& program, IrProcedure& procedure,
+                                   IrValueId destination, StringView value) {
   FELL_ASSERT(program.string_constants.size() < kMaxValue<u32>);
 
   const IrStringConstantId id{

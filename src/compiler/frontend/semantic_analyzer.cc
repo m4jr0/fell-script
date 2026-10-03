@@ -1,4 +1,4 @@
-#include "compiler/semantic_analyzer.h"
+#include "compiler/frontend/semantic_analyzer.h"
 
 #include "core/assert.h"
 #include "core/type.h"

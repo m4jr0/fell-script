@@ -1,0 +1,68 @@
+diff --git a/src/compiler/ir/ir.h b/src/compiler/ir/ir.h
+--- a/src/compiler/ir/ir.h
++++ b/src/compiler/ir/ir.h
+@@
+ struct IrBinary {
+   IrValueId destination{IrValueId{}};
+   IrValueId left{IrValueId{}};
+   IrValueId right{IrValueId{}};
+ };
+
++struct IrPhi {
++  IrValueId destination{IrValueId{}};
++  IrLocalId local{kInvalidIrLocalId};
++  u32 incoming_offset{0};
++  u32 incoming_count{0};
++};
++
++struct IrPhiIncoming {
++  IrBlockId predecessor{kInvalidIrBlockId};
++  IrValueId value{IrValueId{}};
++};
++
+ struct IrJump {
+@@
+ struct IrBasicBlock {
++  Vector<IrPhi> phis;
+   Vector<IrInstruction> instructions;
+   IrTerminator terminator{};
+ };
+
+ struct IrProcedure {
+   Vector<IrBasicBlock> blocks;
+   Vector<IrValue> values;
++  Vector<IrPhiIncoming> phi_incomings;
+   Vector<IrValueId> call_arguments;
+diff --git a/src/compiler/compiler.cc b/src/compiler/compiler.cc
+--- a/src/compiler/compiler.cc
++++ b/src/compiler/compiler.cc
+@@
+ #include "compiler/ir/dump.h"
+ #include "compiler/ir/ir_builder.h"
+ #include "compiler/ir/ir_verifier.h"
++#include "compiler/ir/transform/phi_placement.h"
+@@
+-  const IrProgram ir{
++  IrProgram ir{
+       ir_builder.Build(unit, semantic_result.model, return_last_expression)};
+
+   VerifyIr(ir);
+
++  PlacePhiNodes(ir.main);
++
++  for (IrFunction& function : ir.functions) {
++    PlacePhiNodes(function.procedure, function.parameter_local_slots);
++  }
++
++  VerifyIr(ir);
++
+   if (options.dumps.Has(CompileDump::kIr)) {
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@
+     src/compiler/ir/ir.cc
+     src/compiler/ir/ir_builder.cc
+     src/compiler/ir/ir_verifier.cc
++    src/compiler/ir/transform/phi_placement.cc
+     src/compiler/frontend/lexer.cc

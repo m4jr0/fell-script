@@ -2,7 +2,7 @@
 
 #include <optional>
 
-#include "compiler/source_location.h"
+#include "compiler/frontend/source_location.h"
 #include "core/span.h"
 #include "core/string.h"
 

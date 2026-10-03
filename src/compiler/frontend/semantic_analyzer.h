@@ -1,9 +1,9 @@
 #pragma once
 
-#include "compiler/ast.h"
-#include "compiler/diagnostic.h"
+#include "compiler/frontend/ast.h"
+#include "compiler/frontend/diagnostic.h"
+#include "compiler/frontend/type.h"
 #include "compiler/native_function.h"
-#include "compiler/type.h"
 
 namespace fell {
 

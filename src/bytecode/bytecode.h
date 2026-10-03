@@ -183,7 +183,8 @@ using RegisterId = u16;
 inline constexpr RegisterId kInvalidRegisterId{static_cast<RegisterId>(-1)};
 
 using StringConstantId = u32;
-inline constexpr StringConstantId kInvalidStringConstantId{static_cast<StringConstantId>(-1)};
+inline constexpr StringConstantId kInvalidStringConstantId{
+    static_cast<StringConstantId>(-1)};
 
 using GlobalId = u32;
 inline constexpr GlobalId kInvalidGlobalId{static_cast<GlobalId>(-1)};
@@ -192,7 +193,8 @@ using LocalId = u32;
 inline constexpr LocalId kInvalidLocalId{static_cast<LocalId>(-1)};
 
 using FunctionId = u32;
-inline constexpr FunctionId kInvalidBytecodeFunctionId{static_cast<FunctionId>(-1)};
+inline constexpr FunctionId kInvalidBytecodeFunctionId{
+    static_cast<FunctionId>(-1)};
 
 inline constexpr u32 kMaxRegisterCount{256};
 
@@ -216,11 +218,28 @@ struct LocalInstruction {
   LocalId local{kInvalidLocalId};
 };
 
-struct MoveInstruction { RegisterId destination{kInvalidRegisterId}; RegisterId source{kInvalidRegisterId}; };
-struct JumpInstruction { u32 target{kMaxValue<u32>}; };
-struct JumpIfFalseInstruction { RegisterId condition{kInvalidRegisterId}; u32 target{kMaxValue<u32>}; };
-struct CallInstruction { RegisterId destination{kInvalidRegisterId}; FunctionId function{kInvalidBytecodeFunctionId}; u32 argument_offset{0}; u32 argument_count{0}; };
-struct NativeCallInstruction { RegisterId argument{kInvalidRegisterId}; ValueType type{ValueType::kInvalid}; NativeFunctionId function{kInvalidNativeFunctionId}; };
+struct MoveInstruction {
+  RegisterId destination{kInvalidRegisterId};
+  RegisterId source{kInvalidRegisterId};
+};
+struct JumpInstruction {
+  u32 target{kMaxValue<u32>};
+};
+struct JumpIfFalseInstruction {
+  RegisterId condition{kInvalidRegisterId};
+  u32 target{kMaxValue<u32>};
+};
+struct CallInstruction {
+  RegisterId destination{kInvalidRegisterId};
+  FunctionId function{kInvalidBytecodeFunctionId};
+  u32 argument_offset{0};
+  u32 argument_count{0};
+};
+struct NativeCallInstruction {
+  RegisterId argument{kInvalidRegisterId};
+  ValueType type{ValueType::kInvalid};
+  NativeFunctionId function{kInvalidNativeFunctionId};
+};
 
 struct ConvertInstruction {
   RegisterId destination{kInvalidRegisterId};

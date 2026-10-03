@@ -1,4 +1,4 @@
-#include "compiler/parser.h"
+#include "compiler/frontend/parser.h"
 
 #include <charconv>
 #include <utility>

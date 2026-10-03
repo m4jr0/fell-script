@@ -8,7 +8,7 @@
 #include "bytecode/dump.h"
 #include "bytecode/serialization.h"
 #include "compiler/compiler.h"
-#include "compiler/diagnostic.h"
+#include "compiler/frontend/diagnostic.h"
 #include "core/span.h"
 #include "core/string.h"
 #include "core/vector.h"

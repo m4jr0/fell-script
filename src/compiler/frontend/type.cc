@@ -1,4 +1,4 @@
-#include "compiler/type.h"
+#include "compiler/frontend/type.h"
 
 #include "core/assert.h"
 #include "core/type.h"

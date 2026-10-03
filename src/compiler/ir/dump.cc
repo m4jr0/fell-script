@@ -1,10 +1,10 @@
-#include "compiler/dump.h"
+#include "compiler/ir/dump.h"
 
 #include <sstream>
 
-#include "compiler/lexer.h"
-#include "compiler/token.h"
-#include "compiler/type.h"
+#include "compiler/frontend/lexer.h"
+#include "compiler/frontend/token.h"
+#include "compiler/frontend/type.h"
 #include "core/assert.h"
 #include "core/type.h"
 
@@ -78,12 +78,6 @@ StringView ToString(IrOpcode opcode) {
       return "store_local";
     case IrOpcode::kMove:
       return "move";
-    case IrOpcode::kLabel:
-      return "label";
-    case IrOpcode::kJump:
-      return "jump";
-    case IrOpcode::kJumpIfFalse:
-      return "jump_if_false";
     case IrOpcode::kCall:
       return "call";
     case IrOpcode::kCallNative:
@@ -112,8 +106,6 @@ StringView ToString(IrOpcode opcode) {
       return "greater";
     case IrOpcode::kGreaterEqual:
       return "greater_equal";
-    case IrOpcode::kReturn:
-      return "return";
   }
 
   FELL_UNREACHABLE();
@@ -394,193 +386,192 @@ String DumpAst(const CompilationUnit& unit) {
 
 String DumpIr(const IrProgram& program) {
   std::ostringstream output{};
-  output << "values:\n";
 
-  for (usize index{0}; index < program.values.size(); ++index) {
-    output << "  %" << index << ": " << ToString(program.values[index].type)
-           << '\n';
-  }
+  auto dump_procedure = [&](StringView name, const IrProcedure& procedure) {
+    output << name << ":\n";
+    output << "  values:\n";
 
-  output << "\ninstructions:\n";
+    for (usize index{0}; index < procedure.values.size(); ++index) {
+      output << "    %" << index << ": "
+             << ToString(procedure.values[index].type) << '\n';
+    }
 
-  for (const IrInstruction& instruction : program.instructions) {
-    switch (instruction.opcode) {
-      case IrOpcode::kInvalid:
-        FELL_UNREACHABLE();
+    output << "  blocks:\n";
 
-      case IrOpcode::kConstant: {
-        const Type type{
-            GetIrValue(program, instruction.constant.destination).type,
-        };
+    for (usize block_index{0}; block_index < procedure.blocks.size();
+         ++block_index) {
+      const IrBasicBlock& block{procedure.blocks[block_index]};
+      output << "  B" << block_index;
+      if (block_index == procedure.entry) {
+        output << " [entry]";
+      }
+      output << ":\n";
 
-        output << "  %" << instruction.constant.destination.value
-               << " = constant " << ToString(type) << " ";
+      for (const IrInstruction& instruction : block.instructions) {
+        output << "    ";
 
-        switch (type) {
-          case Type::kBool:
-            output << (instruction.constant.bool_value ? "true" : "false");
-            break;
-
-          case Type::kS8:
-          case Type::kS16:
-          case Type::kS32:
-          case Type::kS64:
-            output << instruction.constant.s64_value;
-            break;
-
-          case Type::kU8:
-          case Type::kU16:
-          case Type::kU32:
-          case Type::kU64:
-            output << instruction.constant.u64_value;
-            break;
-
-          case Type::kF32:
-          case Type::kF64:
-            output << instruction.constant.f64_value;
-            break;
-
-          case Type::kString:
-            output
-                << "\""
-                << program.string_constants[instruction.constant.string_value]
-                << "\"";
-            break;
-
-          case Type::kUnit:
-          case Type::kInvalid:
-          case Type::kError:
+        switch (instruction.opcode) {
+          case IrOpcode::kInvalid:
             FELL_UNREACHABLE();
+
+          case IrOpcode::kConstant: {
+            const Type type{
+                GetIrValue(procedure, instruction.constant.destination).type,
+            };
+            output << "%" << instruction.constant.destination.value
+                   << " = constant " << ToString(type) << " ";
+            switch (type) {
+              case Type::kBool:
+                output << (instruction.constant.bool_value ? "true" : "false");
+                break;
+              case Type::kS8:
+              case Type::kS16:
+              case Type::kS32:
+              case Type::kS64:
+                output << instruction.constant.s64_value;
+                break;
+              case Type::kU8:
+              case Type::kU16:
+              case Type::kU32:
+              case Type::kU64:
+                output << instruction.constant.u64_value;
+                break;
+              case Type::kF32:
+              case Type::kF64:
+                output << instruction.constant.f64_value;
+                break;
+              case Type::kString:
+                output
+                    << '"'
+                    << program
+                           .string_constants[instruction.constant.string_value]
+                    << '"';
+                break;
+              case Type::kUnit:
+              case Type::kInvalid:
+              case Type::kError:
+                FELL_UNREACHABLE();
+            }
+            break;
+          }
+
+          case IrOpcode::kLoadGlobal:
+            output << "%" << instruction.global.value.value
+                   << " = load_global #" << instruction.global.global;
+            break;
+          case IrOpcode::kStoreGlobal:
+            output << "store_global #" << instruction.global.global << ", %"
+                   << instruction.global.value.value;
+            break;
+          case IrOpcode::kLoadLocal:
+            output << "%" << instruction.local.value.value << " = load_local #"
+                   << instruction.local.local;
+            break;
+          case IrOpcode::kStoreLocal:
+            output << "store_local #" << instruction.local.local << ", %"
+                   << instruction.local.value.value;
+            break;
+          case IrOpcode::kMove:
+            output << "%" << instruction.move.destination.value << " = move %"
+                   << instruction.move.source.value;
+            break;
+          case IrOpcode::kCall:
+            if (instruction.call.has_destination) {
+              output << "%" << instruction.call.destination.value << " = ";
+            }
+            output << "call fn#" << instruction.call.function << " (";
+            for (u32 index{0}; index < instruction.call.argument_count;
+                 ++index) {
+              if (index != 0) {
+                output << ", ";
+              }
+              output << "%"
+                     << procedure
+                            .call_arguments[instruction.call.argument_offset +
+                                            index]
+                            .value;
+            }
+            output << ")";
+            break;
+          case IrOpcode::kCallNative:
+            output << "call_native #" << instruction.call_native.function
+                   << " %" << instruction.call_native.argument.value;
+            break;
+          case IrOpcode::kConvert: {
+            const Type source{
+                GetIrValue(procedure, instruction.convert.source).type};
+            const Type destination{
+                GetIrValue(procedure, instruction.convert.destination).type,
+            };
+            output << "%" << instruction.convert.destination.value
+                   << " = convert " << ToString(source) << " %"
+                   << instruction.convert.source.value << " -> "
+                   << ToString(destination);
+            break;
+          }
+          case IrOpcode::kNegate:
+          case IrOpcode::kLogicalNot: {
+            const Type type{
+                GetIrValue(procedure, instruction.unary.destination).type};
+            output << "%" << instruction.unary.destination.value << " = "
+                   << ToString(instruction.opcode) << ' ' << ToString(type)
+                   << " %" << instruction.unary.operand.value;
+            break;
+          }
+          case IrOpcode::kMultiply:
+          case IrOpcode::kDivide:
+          case IrOpcode::kAdd:
+          case IrOpcode::kSubtract:
+          case IrOpcode::kEqual:
+          case IrOpcode::kNotEqual:
+          case IrOpcode::kLess:
+          case IrOpcode::kLessEqual:
+          case IrOpcode::kGreater:
+          case IrOpcode::kGreaterEqual: {
+            const Type type{
+                GetIrValue(procedure, instruction.binary.left).type};
+            output << "%" << instruction.binary.destination.value << " = "
+                   << ToString(instruction.opcode) << ' ' << ToString(type)
+                   << " %" << instruction.binary.left.value << ", %"
+                   << instruction.binary.right.value;
+            break;
+          }
         }
 
         output << '\n';
-        break;
       }
 
-      case IrOpcode::kLoadGlobal:
-        output << "  %" << instruction.global.value.value << " = load_global #"
-               << instruction.global.global << '\n';
-        break;
-
-      case IrOpcode::kStoreGlobal:
-        output << "  store_global #" << instruction.global.global << ", %"
-               << instruction.global.value.value << '\n';
-        break;
-
-      case IrOpcode::kLoadLocal:
-        output << "  %" << instruction.local.value.value << " = load_local #"
-               << instruction.local.local << '\n';
-        break;
-
-      case IrOpcode::kStoreLocal:
-        output << "  store_local #" << instruction.local.local << ", %"
-               << instruction.local.value.value << '\n';
-        break;
-
-      case IrOpcode::kMove:
-        output << "  %" << instruction.move.destination.value << " = move %"
-               << instruction.move.source.value << '\n';
-        break;
-
-      case IrOpcode::kLabel:
-        output << "L" << instruction.label.label << ":\n";
-        break;
-
-      case IrOpcode::kJump:
-        output << "  jump L" << instruction.jump.target << '\n';
-        break;
-
-      case IrOpcode::kJumpIfFalse:
-        output << "  jump_if_false %"
-               << instruction.jump_if_false.condition.value << ", L"
-               << instruction.jump_if_false.target << '\n';
-        break;
-
-      case IrOpcode::kCall:
-        output << "  %" << instruction.call.destination.value << " = call fn#"
-               << instruction.call.function << " (";
-
-        for (u32 i{0}; i < instruction.call.argument_count; ++i) {
-          if (i != 0) output << ", ";
-
-          output << "%"
-                 << program.call_arguments[instruction.call.argument_offset + i]
-                        .value;
-        }
-
-        output << ")\n";
-        break;
-
-      case IrOpcode::kCallNative:
-        output << "  call_native "
-               << (instruction.call_native.function == kPrintNativeFunctionId
-                       ? "print"
-                       : "assert")
-               << " %" << instruction.call_native.argument.value << '\n';
-        break;
-
-      case IrOpcode::kConvert: {
-        const Type source{
-            GetIrValue(program, instruction.convert.source).type,
-        };
-        const Type destination{
-            GetIrValue(program, instruction.convert.destination).type,
-        };
-
-        output << "  %" << instruction.convert.destination.value
-               << " = convert " << ToString(source) << " %"
-               << instruction.convert.source.value << " -> "
-               << ToString(destination) << '\n';
-        break;
+      output << "    ";
+      switch (block.terminator.kind) {
+        case IrTerminatorKind::kInvalid:
+          output << "<invalid terminator>";
+          break;
+        case IrTerminatorKind::kJump:
+          output << "jump B" << block.terminator.jump.target;
+          break;
+        case IrTerminatorKind::kBranch:
+          output << "branch %" << block.terminator.branch.condition.value
+                 << ", B" << block.terminator.branch.true_target << ", B"
+                 << block.terminator.branch.false_target;
+          break;
+        case IrTerminatorKind::kReturn:
+          output << "return %" << block.terminator.return_.value.value;
+          break;
+        case IrTerminatorKind::kExit:
+          output << "exit";
+          break;
       }
-
-      case IrOpcode::kNegate:
-      case IrOpcode::kLogicalNot: {
-        const Type type{
-            GetIrValue(program, instruction.unary.destination).type,
-        };
-
-        output << "  %" << instruction.unary.destination.value << " = "
-               << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
-               << instruction.unary.operand.value << '\n';
-        break;
-      }
-
-      case IrOpcode::kMultiply:
-      case IrOpcode::kDivide:
-      case IrOpcode::kAdd:
-      case IrOpcode::kSubtract: {
-        const Type type{
-            GetIrValue(program, instruction.binary.destination).type,
-        };
-
-        output << "  %" << instruction.binary.destination.value << " = "
-               << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
-               << instruction.binary.left.value << ", %"
-               << instruction.binary.right.value << '\n';
-        break;
-      }
-
-      case IrOpcode::kEqual:
-      case IrOpcode::kNotEqual:
-      case IrOpcode::kLess:
-      case IrOpcode::kLessEqual:
-      case IrOpcode::kGreater:
-      case IrOpcode::kGreaterEqual: {
-        const Type type{GetIrValue(program, instruction.binary.left).type};
-        FELL_ASSERT(GetIrValue(program, instruction.binary.right).type == type);
-
-        output << "  %" << instruction.binary.destination.value << " = "
-               << ToString(instruction.opcode) << ' ' << ToString(type) << " %"
-               << instruction.binary.left.value << ", %"
-               << instruction.binary.right.value << '\n';
-        break;
-      }
-
-      case IrOpcode::kReturn:
-        output << "  return %" << instruction.return_.value.value << '\n';
-        break;
+      output << '\n';
     }
+  };
+
+  dump_procedure("main", program.main);
+
+  for (const IrFunction& function : program.functions) {
+    output << '\n';
+    output << "function #" << function.id << " -> "
+           << ToString(function.return_type) << '\n';
+    dump_procedure("procedure", function.procedure);
   }
 
   return output.str();
