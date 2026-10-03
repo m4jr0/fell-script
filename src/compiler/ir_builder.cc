@@ -12,11 +12,12 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
                            bool return_last_expression) {
   IrProgram program{};
 
-  next_label_ = 0;
-  loop_stack_.clear();
-
   program.global_count = semantics.global_count();
-  program.local_count = semantics.local_count();
+
+  program.main.entry = CreateBlock(program.main);
+  program.main.local_count = semantics.local_count();
+
+  SetCurrentBlock(program.main.entry);
 
   IrValueId last_value{};
   bool has_value{false};
@@ -40,13 +41,13 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
   }
 
   if (return_last_expression && has_value) {
-    program.instructions.push_back({
-        .opcode = IrOpcode::kReturn,
-        .return_ =
-            {
-                .value = last_value,
-            },
-    });
+    EmitInstruction(procedure, {
+                                   .opcode = IrOpcode::kReturn,
+                                   .return_ =
+                                       {
+                                           .value = last_value,
+                                       },
+                               });
   }
 
   program.main_instruction_count =
@@ -79,7 +80,7 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
 
 void IrBuilder::BuildStatement(const Statement& statement,
                                const SemanticModel& semantics,
-                               IrProgram& program) {
+                               IrProgram& program, IrProcedure& procedure) {
   switch (statement.kind) {
     case StatementKind::kInvalid:
       FELL_UNREACHABLE();
@@ -99,23 +100,25 @@ void IrBuilder::BuildStatement(const Statement& statement,
       value = ConvertIfNeeded(value, statement_semantics.type, program);
 
       if (statement_semantics.binding.storage == VariableStorage::kGlobal) {
-        program.instructions.push_back({
-            .opcode = IrOpcode::kStoreGlobal,
-            .global =
-                {
-                    .value = value,
-                    .global = statement_semantics.binding.slot,
-                },
-        });
+        EmitInstruction(procedure,
+                        {
+                            .opcode = IrOpcode::kStoreGlobal,
+                            .global =
+                                {
+                                    .value = value,
+                                    .global = statement_semantics.binding.slot,
+                                },
+                        });
       } else {
-        program.instructions.push_back({
-            .opcode = IrOpcode::kStoreLocal,
-            .local =
-                {
-                    .value = value,
-                    .local = statement_semantics.binding.slot,
-                },
-        });
+        EmitInstruction(procedure,
+                        {
+                            .opcode = IrOpcode::kStoreLocal,
+                            .local =
+                                {
+                                    .value = value,
+                                    .local = statement_semantics.binding.slot,
+                                },
+                        });
       }
 
       return;
@@ -130,91 +133,72 @@ void IrBuilder::BuildStatement(const Statement& statement,
 
       value = ConvertIfNeeded(value, semantics.Get(statement).type, program);
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kReturn,
-          .return_ =
-              {
-                  .value = value,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = IrOpcode::kReturn,
+                                     .return_ =
+                                         {
+                                             .value = value,
+                                         },
+                                 });
 
       return;
     }
 
     case StatementKind::kIf: {
-      const IrValueId condition{
-          BuildExpression(*statement.if_.condition, semantics, program)};
+      const IrValueId condition{BuildExpression(*statement.if_.condition,
+                                                semantics, program, procedure)};
 
-      const IrLabelId else_label{AllocateLabel()};
-      const IrLabelId end_label{AllocateLabel()};
+      const IrBlockId then_block{CreateBlock(procedure)};
+      const IrBlockId else_block{CreateBlock(procedure)};
+      const IrBlockId end_block{CreateBlock(procedure)};
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJumpIfFalse,
-          .jump_if_false =
-              {
-                  .condition = condition,
-                  .target = else_label,
-              },
-      });
-
-      BuildExpression(*statement.if_.then_block, semantics, program);
-
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJump,
-          .jump =
-              {
-                  .target = end_label,
-              },
-      });
-
-      EmitLabel(program, else_label);
+      EmitBranch(procedure, condition, then_block, else_block);
+      SetCurrentBlock(then_block);
+      BuildExpression(*statement.if_.then_block, semantics, program, procedure);
+      EmitJump(procedure, end_block);
+      SetCurrentBlock(else_block);
 
       if (statement.if_.else_block != nullptr) {
-        BuildExpression(*statement.if_.else_block, semantics, program);
+        BuildExpression(*statement.if_.else_block, semantics, program,
+                        procedure);
       }
 
-      EmitLabel(program, end_label);
+      if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+        EmitJump(procedure, end_block);
+      }
 
+      SetCurrentBlock(end_block);
       return;
     }
 
     case StatementKind::kWhile: {
-      const IrLabelId condition_label{AllocateLabel()};
-      const IrLabelId end_label{AllocateLabel()};
+      const IrBlockId condition_block{CreateBlock(procedure)};
+      const IrBlockId body_block{CreateBlock(procedure)};
+      const IrBlockId end_block{CreateBlock(procedure)};
 
-      EmitLabel(program, condition_label);
+      EmitJump(procedure, condition_block);
+      SetCurrentBlock(condition_block);
 
-      const IrValueId condition{
-          BuildExpression(*statement.while_.condition, semantics, program)};
+      const IrValueId condition{BuildExpression(*statement.while_.condition,
+                                                semantics, program, procedure)};
+      EmitBranch(procedure, condition, body_block, end_block);
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJumpIfFalse,
-          .jump_if_false =
-              {
-                  .condition = condition,
-                  .target = end_label,
-              },
-      });
+      SetCurrentBlock(body_block);
 
       loop_stack_.push_back({
-          .continue_target = condition_label,
-          .break_target = end_label,
+          .continue_target = condition_block,
+          .break_target = end_block,
       });
 
-      BuildExpression(*statement.while_.body, semantics, program);
+      BuildExpression(...);
 
       loop_stack_.pop_back();
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJump,
-          .jump =
-              {
-                  .target = condition_label,
-              },
-      });
+      if (!IsBlockTerminated(GetCurrentBlock(procedure))) {
+        EmitJump(procedure, condition_block);
+      }
 
-      EmitLabel(program, end_label);
-
+      SetCurrentBlock(end_block);
       return;
     }
 
@@ -233,14 +217,14 @@ void IrBuilder::BuildStatement(const Statement& statement,
         const IrValueId condition{
             BuildExpression(*statement.for_.condition, semantics, program)};
 
-        program.instructions.push_back({
-            .opcode = IrOpcode::kJumpIfFalse,
-            .jump_if_false =
-                {
-                    .condition = condition,
-                    .target = end_label,
-                },
-        });
+        EmitInstruction(procedure, {
+                                       .opcode = IrOpcode::kJumpIfFalse,
+                                       .jump_if_false =
+                                           {
+                                               .condition = condition,
+                                               .target = end_label,
+                                           },
+                                   });
       }
 
       loop_stack_.push_back({
@@ -258,13 +242,13 @@ void IrBuilder::BuildStatement(const Statement& statement,
         BuildExpression(*statement.for_.increment, semantics, program);
       }
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJump,
-          .jump =
-              {
-                  .target = condition_label,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = IrOpcode::kJump,
+                                     .jump =
+                                         {
+                                             .target = condition_label,
+                                         },
+                                 });
 
       EmitLabel(program, end_label);
 
@@ -274,26 +258,28 @@ void IrBuilder::BuildStatement(const Statement& statement,
     case StatementKind::kBreak:
       FELL_ASSERT(!loop_stack_.empty());
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJump,
-          .jump =
-              {
-                  .target = loop_stack_.back().break_target,
-              },
-      });
+      EmitInstruction(procedure,
+                      {
+                          .opcode = IrOpcode::kJump,
+                          .jump =
+                              {
+                                  .target = loop_stack_.back().break_target,
+                              },
+                      });
 
       return;
 
     case StatementKind::kContinue:
       FELL_ASSERT(!loop_stack_.empty());
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJump,
-          .jump =
-              {
-                  .target = loop_stack_.back().continue_target,
-              },
-      });
+      EmitInstruction(procedure,
+                      {
+                          .opcode = IrOpcode::kJump,
+                          .jump =
+                              {
+                                  .target = loop_stack_.back().continue_target,
+                              },
+                      });
 
       return;
 
@@ -316,34 +302,34 @@ void IrBuilder::BuildStatement(const Statement& statement,
 
         const IrValueId matches{AllocateValue(program, Type::kBool)};
 
-        program.instructions.push_back({
-            .opcode = IrOpcode::kEqual,
-            .binary =
-                {
-                    .destination = matches,
-                    .left = switch_value,
-                    .right = case_value,
-                },
-        });
+        EmitInstruction(procedure, {
+                                       .opcode = IrOpcode::kEqual,
+                                       .binary =
+                                           {
+                                               .destination = matches,
+                                               .left = switch_value,
+                                               .right = case_value,
+                                           },
+                                   });
 
-        program.instructions.push_back({
-            .opcode = IrOpcode::kJumpIfFalse,
-            .jump_if_false =
-                {
-                    .condition = matches,
-                    .target = next_label,
-                },
-        });
+        EmitInstruction(procedure, {
+                                       .opcode = IrOpcode::kJumpIfFalse,
+                                       .jump_if_false =
+                                           {
+                                               .condition = matches,
+                                               .target = next_label,
+                                           },
+                                   });
 
         BuildExpression(*case_.body, semantics, program);
 
-        program.instructions.push_back({
-            .opcode = IrOpcode::kJump,
-            .jump =
-                {
-                    .target = end_label,
-                },
-        });
+        EmitInstruction(procedure, {
+                                       .opcode = IrOpcode::kJump,
+                                       .jump =
+                                           {
+                                               .target = end_label,
+                                           },
+                                   });
 
         EmitLabel(program, next_label);
       }
@@ -363,7 +349,8 @@ void IrBuilder::BuildStatement(const Statement& statement,
 
 IrValueId IrBuilder::BuildExpression(const Expression& expression,
                                      const SemanticModel& semantics,
-                                     IrProgram& program) {
+                                     IrProgram& program,
+                                     IrProcedure& procedure) {
   switch (expression.kind) {
     case ExpressionKind::kInvalid:
       FELL_UNREACHABLE();
@@ -422,23 +409,25 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           AllocateValue(program, expression_semantics.type)};
 
       if (expression_semantics.binding.storage == VariableStorage::kGlobal) {
-        program.instructions.push_back({
-            .opcode = IrOpcode::kLoadGlobal,
-            .global =
-                {
-                    .value = destination,
-                    .global = expression_semantics.binding.slot,
-                },
-        });
+        EmitInstruction(procedure,
+                        {
+                            .opcode = IrOpcode::kLoadGlobal,
+                            .global =
+                                {
+                                    .value = destination,
+                                    .global = expression_semantics.binding.slot,
+                                },
+                        });
       } else {
-        program.instructions.push_back({
-            .opcode = IrOpcode::kLoadLocal,
-            .local =
-                {
-                    .value = destination,
-                    .local = expression_semantics.binding.slot,
-                },
-        });
+        EmitInstruction(procedure,
+                        {
+                            .opcode = IrOpcode::kLoadLocal,
+                            .local =
+                                {
+                                    .value = destination,
+                                    .local = expression_semantics.binding.slot,
+                                },
+                        });
       }
 
       return destination;
@@ -453,23 +442,25 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       value = ConvertIfNeeded(value, expression_semantics.type, program);
 
       if (expression_semantics.binding.storage == VariableStorage::kGlobal) {
-        program.instructions.push_back({
-            .opcode = IrOpcode::kStoreGlobal,
-            .global =
-                {
-                    .value = value,
-                    .global = expression_semantics.binding.slot,
-                },
-        });
+        EmitInstruction(procedure,
+                        {
+                            .opcode = IrOpcode::kStoreGlobal,
+                            .global =
+                                {
+                                    .value = value,
+                                    .global = expression_semantics.binding.slot,
+                                },
+                        });
       } else {
-        program.instructions.push_back({
-            .opcode = IrOpcode::kStoreLocal,
-            .local =
-                {
-                    .value = value,
-                    .local = expression_semantics.binding.slot,
-                },
-        });
+        EmitInstruction(procedure,
+                        {
+                            .opcode = IrOpcode::kStoreLocal,
+                            .local =
+                                {
+                                    .value = value,
+                                    .local = expression_semantics.binding.slot,
+                                },
+                        });
       }
 
       return value;
@@ -489,15 +480,17 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           const IrValueId argument{
               BuildExpression(*call.arguments[0], semantics, program)};
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kCallNative,
-              .call_native =
-                  {
-                      .argument = argument,
-                      .argument_type = semantics.Get(*call.arguments[0]).type,
-                      .function = call_semantics.function.slot,
-                  },
-          });
+          EmitInstruction(
+              procedure, {
+                             .opcode = IrOpcode::kCallNative,
+                             .call_native =
+                                 {
+                                     .argument = argument,
+                                     .argument_type =
+                                         semantics.Get(*call.arguments[0]).type,
+                                     .function = call_semantics.function.slot,
+                                 },
+                         });
 
           return {};
         }
@@ -525,17 +518,19 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           const IrValueId destination{
               AllocateValue(program, call_semantics.type)};
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kCall,
-              .call =
-                  {
-                      .destination = destination,
-                      .function = call_semantics.function.slot,
-                      .argument_offset = argument_offset,
-                      .argument_count = static_cast<u32>(call.arguments.size()),
-                      .has_destination = true,
-                  },
-          });
+          EmitInstruction(procedure,
+                          {
+                              .opcode = IrOpcode::kCall,
+                              .call =
+                                  {
+                                      .destination = destination,
+                                      .function = call_semantics.function.slot,
+                                      .argument_offset = argument_offset,
+                                      .argument_count = static_cast<u32>(
+                                          call.arguments.size()),
+                                      .has_destination = true,
+                                  },
+                          });
 
           return destination;
         }
@@ -556,36 +551,36 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       const IrLabelId else_label{AllocateLabel()};
       const IrLabelId end_label{AllocateLabel()};
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJumpIfFalse,
-          .jump_if_false =
-              {
-                  .condition = condition,
-                  .target = else_label,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = IrOpcode::kJumpIfFalse,
+                                     .jump_if_false =
+                                         {
+                                             .condition = condition,
+                                             .target = else_label,
+                                         },
+                                 });
 
       IrValueId then_value{
           BuildExpression(*conditional.then_expression, semantics, program)};
 
       then_value = ConvertIfNeeded(then_value, result_type, program);
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kMove,
-          .move =
-              {
-                  .destination = destination,
-                  .source = then_value,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = IrOpcode::kMove,
+                                     .move =
+                                         {
+                                             .destination = destination,
+                                             .source = then_value,
+                                         },
+                                 });
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kJump,
-          .jump =
-              {
-                  .target = end_label,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = IrOpcode::kJump,
+                                     .jump =
+                                         {
+                                             .target = end_label,
+                                         },
+                                 });
 
       EmitLabel(program, else_label);
 
@@ -594,14 +589,14 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       else_value = ConvertIfNeeded(else_value, result_type, program);
 
-      program.instructions.push_back({
-          .opcode = IrOpcode::kMove,
-          .move =
-              {
-                  .destination = destination,
-                  .source = else_value,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = IrOpcode::kMove,
+                                     .move =
+                                         {
+                                             .destination = destination,
+                                             .source = else_value,
+                                         },
+                                 });
 
       EmitLabel(program, end_label);
 
@@ -666,14 +661,14 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           break;
       }
 
-      program.instructions.push_back({
-          .opcode = opcode,
-          .unary =
-              {
-                  .destination = destination,
-                  .operand = operand,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = opcode,
+                                     .unary =
+                                         {
+                                             .destination = destination,
+                                             .operand = operand,
+                                         },
+                                 });
 
       return destination;
     }
@@ -691,85 +686,85 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
         const IrLabelId end_label{AllocateLabel()};
 
         if (binary.op == BinaryOperator::kLogicalAnd) {
-          program.instructions.push_back({
-              .opcode = IrOpcode::kJumpIfFalse,
-              .jump_if_false =
-                  {
-                      .condition = left,
-                      .target = false_label,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kJumpIfFalse,
+                                         .jump_if_false =
+                                             {
+                                                 .condition = left,
+                                                 .target = false_label,
+                                             },
+                                     });
 
           const IrValueId right{
               BuildExpression(*binary.right, semantics, program)};
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kMove,
-              .move =
-                  {
-                      .destination = destination,
-                      .source = right,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kMove,
+                                         .move =
+                                             {
+                                                 .destination = destination,
+                                                 .source = right,
+                                             },
+                                     });
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kJump,
-              .jump =
-                  {
-                      .target = end_label,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kJump,
+                                         .jump =
+                                             {
+                                                 .target = end_label,
+                                             },
+                                     });
 
           EmitLabel(program, false_label);
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kMove,
-              .move =
-                  {
-                      .destination = destination,
-                      .source = left,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kMove,
+                                         .move =
+                                             {
+                                                 .destination = destination,
+                                                 .source = left,
+                                             },
+                                     });
         } else {
-          program.instructions.push_back({
-              .opcode = IrOpcode::kJumpIfFalse,
-              .jump_if_false =
-                  {
-                      .condition = left,
-                      .target = rhs_label,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kJumpIfFalse,
+                                         .jump_if_false =
+                                             {
+                                                 .condition = left,
+                                                 .target = rhs_label,
+                                             },
+                                     });
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kMove,
-              .move =
-                  {
-                      .destination = destination,
-                      .source = left,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kMove,
+                                         .move =
+                                             {
+                                                 .destination = destination,
+                                                 .source = left,
+                                             },
+                                     });
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kJump,
-              .jump =
-                  {
-                      .target = end_label,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kJump,
+                                         .jump =
+                                             {
+                                                 .target = end_label,
+                                             },
+                                     });
 
           EmitLabel(program, rhs_label);
 
           const IrValueId right{
               BuildExpression(*binary.right, semantics, program)};
 
-          program.instructions.push_back({
-              .opcode = IrOpcode::kMove,
-              .move =
-                  {
-                      .destination = destination,
-                      .source = right,
-                  },
-          });
+          EmitInstruction(procedure, {
+                                         .opcode = IrOpcode::kMove,
+                                         .move =
+                                             {
+                                                 .destination = destination,
+                                                 .source = right,
+                                             },
+                                     });
         }
 
         EmitLabel(program, end_label);
@@ -846,15 +841,15 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
           break;
       }
 
-      program.instructions.push_back({
-          .opcode = opcode,
-          .binary =
-              {
-                  .destination = destination,
-                  .left = left,
-                  .right = right,
-              },
-      });
+      EmitInstruction(procedure, {
+                                     .opcode = opcode,
+                                     .binary =
+                                         {
+                                             .destination = destination,
+                                             .left = left,
+                                             .right = right,
+                                         },
+                                 });
 
       return destination;
     }
@@ -863,23 +858,8 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
   FELL_UNREACHABLE();
 }
 
-IrLabelId IrBuilder::AllocateLabel() {
-  FELL_ASSERT(next_label_ < kMaxValue<IrLabelId>);
-
-  return next_label_++;
-}
-
-void IrBuilder::EmitLabel(IrProgram& program, IrLabelId label) {
-  program.instructions.push_back({
-      .opcode = IrOpcode::kLabel,
-      .label =
-          {
-              .label = label,
-          },
-  });
-}
-
-IrValueId IrBuilder::AllocateValue(IrProgram& program, Type type) {
+IrValueId IrBuilder::AllocateValue(IrProcedure& procedure, Type type);
+{
   FELL_ASSERT(program.values.size() < kMaxValue<u32>);
 
   const IrValueId id{
@@ -905,16 +885,25 @@ IrValueId IrBuilder::ConvertIfNeeded(IrValueId source, Type destination_type,
 
   const IrValueId destination{AllocateValue(program, destination_type)};
 
-  program.instructions.push_back({
-      .opcode = IrOpcode::kConvert,
-      .convert =
-          {
-              .destination = destination,
-              .source = source,
-          },
-  });
+  EmitInstruction(procedure, {
+                                 .opcode = IrOpcode::kConvert,
+                                 .convert =
+                                     {
+                                         .destination = destination,
+                                         .source = source,
+                                     },
+                             });
 
   return destination;
+}
+IrBlockId IrBuilder::CreateBlock(IrProcedure& procedure) {
+  const IrBlockId id{static_cast<IrBlockId>(procedure.blocks.size())};
+  procedure.blocks.emplace_back();
+  return id;
+}
+
+bool IrBuilder::IsBlockTerminated(const IrBasicBlock& block) {
+  return block.terminator.kind != IrTerminatorKind::kInvalid;
 }
 
 void IrBuilder::EmitBooleanConstant(IrProgram& program, IrValueId destination,
@@ -924,10 +913,10 @@ void IrBuilder::EmitBooleanConstant(IrProgram& program, IrValueId destination,
       .bool_value = value,
   };
 
-  program.instructions.push_back({
-      .opcode = IrOpcode::kConstant,
-      .constant = constant,
-  });
+  EmitInstruction(procedure, {
+                                 .opcode = IrOpcode::kConstant,
+                                 .constant = constant,
+                             });
 }
 
 void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
@@ -980,10 +969,10 @@ void IrBuilder::EmitIntegerConstant(IrProgram& program, IrValueId destination,
       FELL_UNREACHABLE();
   }
 
-  program.instructions.push_back({
-      .opcode = IrOpcode::kConstant,
-      .constant = constant,
-  });
+  EmitInstruction(procedure, {
+                                 .opcode = IrOpcode::kConstant,
+                                 .constant = constant,
+                             });
 }
 
 void IrBuilder::EmitNegatedIntegerConstant(IrProgram& program,
@@ -1003,10 +992,10 @@ void IrBuilder::EmitNegatedIntegerConstant(IrProgram& program,
     constant.s64_value = -static_cast<s64>(magnitude);
   }
 
-  program.instructions.push_back({
-      .opcode = IrOpcode::kConstant,
-      .constant = constant,
-  });
+  EmitInstruction(procedure, {
+                                 .opcode = IrOpcode::kConstant,
+                                 .constant = constant,
+                             });
 }
 
 void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
@@ -1041,10 +1030,10 @@ void IrBuilder::EmitFloatConstant(IrProgram& program, IrValueId destination,
       FELL_UNREACHABLE();
   }
 
-  program.instructions.push_back({
-      .opcode = IrOpcode::kConstant,
-      .constant = constant,
-  });
+  EmitInstruction(procedure, {
+                                 .opcode = IrOpcode::kConstant,
+                                 .constant = constant,
+                             });
 }
 
 void IrBuilder::EmitStringConstant(IrProgram& program, IrValueId destination,
@@ -1056,14 +1045,14 @@ void IrBuilder::EmitStringConstant(IrProgram& program, IrValueId destination,
 
   program.string_constants.emplace_back(value);
 
-  program.instructions.push_back({
-      .opcode = IrOpcode::kConstant,
-      .constant =
-          {
-              .destination = destination,
-              .string_value = id,
-          },
-  });
+  EmitInstruction(procedure, {
+                                 .opcode = IrOpcode::kConstant,
+                                 .constant =
+                                     {
+                                         .destination = destination,
+                                         .string_value = id,
+                                     },
+                             });
 }
 
 }  // namespace fell

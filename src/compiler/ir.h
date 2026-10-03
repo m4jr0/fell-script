@@ -24,9 +24,6 @@ enum class IrOpcode {
   kLoadLocal,
   kStoreLocal,
   kMove,
-  kLabel,
-  kJump,
-  kJumpIfFalse,
   kCall,
   kCallNative,
 
@@ -44,8 +41,15 @@ enum class IrOpcode {
   kLessEqual,
   kGreater,
   kGreaterEqual,
+};
 
+enum class IrTerminatorKind : u8 {
+  kInvalid,
+
+  kJump,
+  kBranch,
   kReturn,
+  kExit,
 };
 
 using IrStringConstantId = u32;
@@ -58,8 +62,8 @@ inline constexpr IrGlobalId kInvalidIrGlobalId{static_cast<IrGlobalId>(-1)};
 using IrLocalId = u32;
 inline constexpr IrLocalId kInvalidIrLocalId{static_cast<IrLocalId>(-1)};
 
-using IrLabelId = u32;
-inline constexpr IrLabelId kInvalidIrLabelId{static_cast<IrLabelId>(-1)};
+using IrBlockId = u32;
+inline constexpr IrBlockId kInvalidIrBlockId{static_cast<IrBlockId>(-1)};
 
 using IrFunctionId = u32;
 inline constexpr IrFunctionId kInvalidIrFunctionId{
@@ -97,19 +101,6 @@ struct IrMove {
   IrValueId source{IrValueId{}};
 };
 
-struct IrLabel {
-  IrLabelId label{kInvalidIrLabelId};
-};
-
-struct IrJump {
-  IrLabelId target{kInvalidIrLabelId};
-};
-
-struct IrJumpIfFalse {
-  IrValueId condition{IrValueId{}};
-  IrLabelId target{kInvalidIrLabelId};
-};
-
 struct IrCall {
   IrValueId destination{IrValueId{}};
   IrFunctionId function{kInvalidIrFunctionId};
@@ -135,8 +126,28 @@ struct IrBinary {
   IrValueId right{IrValueId{}};
 };
 
+struct IrJump {
+  IrBlockId target{kInvalidIrBlockId};
+};
+
+struct IrBranch {
+  IrValueId condition{IrValueId{}};
+  IrBlockId true_target{kInvalidIrBlockId};
+  IrBlockId false_target{kInvalidIrBlockId};
+};
+
 struct IrReturn {
   IrValueId value{IrValueId{}};
+};
+
+struct IrTerminator {
+  IrTerminatorKind kind{IrTerminatorKind::kInvalid};
+
+  union {
+    IrJump jump;
+    IrBranch branch;
+    IrReturn return_;
+  };
 };
 
 struct IrInstruction {
@@ -148,14 +159,10 @@ struct IrInstruction {
     IrGlobal global;
     IrLocal local;
     IrMove move;
-    IrLabel label;
-    IrJump jump;
-    IrJumpIfFalse jump_if_false;
     IrCall call;
     IrCallNative call_native;
     IrUnary unary;
     IrBinary binary;
-    IrReturn return_;
   };
 };
 
@@ -163,24 +170,35 @@ struct IrValue {
   Type type{Type::kInvalid};
 };
 
-struct IrFunction {
-  IrFunctionId id;
-  IrLabelId entry;
-  Vector<IrLocalId> parameter_local_slots;
-  Type return_type{Type::kInvalid};
+struct IrBasicBlock {
+  Vector<IrInstruction> instructions;
+  IrTerminator terminator{};
 };
 
-struct IrProgram {
-  Vector<IrInstruction> instructions;
+struct IrProcedure {
+  Vector<IrBasicBlock> blocks;
   Vector<IrValue> values;
-  Vector<String> string_constants;
   Vector<IrValueId> call_arguments;
-  Vector<IrFunction> functions;
-  u32 main_instruction_count{0};
-  u32 global_count{0};
+
+  IrBlockId entry{kInvalidIrBlockId};
   u32 local_count{0};
 };
 
-const IrValue& GetIrValue(const IrProgram& program, IrValueId id);
+struct IrFunction {
+  IrFunctionId id{kInvalidIrFunctionId};
+  Vector<IrLocalId> parameter_local_slots;
+  Type return_type{Type::kInvalid};
+  IrProcedure procedure;
+};
+
+struct IrProgram {
+  IrProcedure main;
+  Vector<IrFunction> functions;
+  Vector<String> string_constants;
+
+  u32 global_count{0};
+};
+
+const IrValue& GetIrValue(const IrProcedure& procedure, IrValueId id);
 
 }  // namespace fell
