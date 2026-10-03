@@ -43,10 +43,13 @@ add_library(fell_compiler
     src/compiler/ast.cc
     src/compiler/bytecode_compiler.cc
     src/compiler/compiler.cc
+    src/compiler/control_flow_graph.cc
+    src/compiler/control_flow_traversal.cc
     src/compiler/diagnostic.cc
     src/compiler/dump.cc
     src/compiler/ir.cc
     src/compiler/ir_builder.cc
+    src/compiler/ir_verifier.cc
     src/compiler/lexer.cc
     src/compiler/parser.cc
     src/compiler/semantic_analyzer.cc

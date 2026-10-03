@@ -1,5 +1,6 @@
 #include "compiler/bytecode_compiler.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "core/assert.h"
@@ -472,8 +473,9 @@ Opcode GetComparisonOpcode(IrOpcode opcode, Type type) {
   }
 }
 
-Value MakeConstantValue(const IrProgram& ir, const IrConstant& constant) {
-  const Type type{GetIrValue(ir, constant.destination).type};
+Value MakeConstantValue(const IrProcedure& procedure,
+                        const IrConstant& constant) {
+  const Type type{GetIrValue(procedure, constant.destination).type};
 
   Value value{
       .type = ToValueType(type),
@@ -563,41 +565,413 @@ Opcode GetBinaryOpcode(IrOpcode opcode, Type type) {
   }
 }
 
+u32 GetInstructionCount(const IrInstruction& instruction) {
+  FELL_ASSERT(instruction.opcode != IrOpcode::kInvalid);
+  return 1;
+}
+
+u32 GetTerminatorInstructionCount(const IrTerminator& terminator) {
+  switch (terminator.kind) {
+    case IrTerminatorKind::kInvalid:
+      FELL_UNREACHABLE();
+
+    case IrTerminatorKind::kJump:
+    case IrTerminatorKind::kReturn:
+    case IrTerminatorKind::kExit:
+      return 1;
+
+    case IrTerminatorKind::kBranch:
+      return 2;
+  }
+
+  FELL_UNREACHABLE();
+}
+
+u16 GetRegisterCount(const IrProgram& ir) {
+  usize max_value_count{ir.main.values.size()};
+
+  for (const IrFunction& function : ir.functions) {
+    max_value_count =
+        std::max(max_value_count, function.procedure.values.size());
+  }
+
+  FELL_ASSERT(max_value_count <= kMaxRegisterCount);
+  return static_cast<u16>(max_value_count);
+}
+
+u32 GetLocalCount(const IrProgram& ir) {
+  u32 local_count{ir.main.local_count};
+
+  for (const IrFunction& function : ir.functions) {
+    local_count = std::max(local_count, function.procedure.local_count);
+  }
+
+  return local_count;
+}
+
 }  // namespace
 
-BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
-  FELL_ASSERT(ir.values.size() <= kMaxRegisterCount);
+BytecodeCompiler::ProcedureLayout BytecodeCompiler::ComputeProcedureLayout(
+    const IrProcedure& procedure, u32 start) const {
+  ProcedureLayout layout{
+      .block_targets = Vector<u32>(procedure.blocks.size()),
+      .end = 0,
+  };
 
+  u32 bytecode_index{start};
+
+  for (usize index{0}; index < procedure.blocks.size(); ++index) {
+    const IrBasicBlock& block{procedure.blocks[index]};
+
+    layout.block_targets[index] = bytecode_index;
+
+    for (const IrInstruction& instruction : block.instructions) {
+      bytecode_index += GetInstructionCount(instruction);
+    }
+
+    bytecode_index += GetTerminatorInstructionCount(block.terminator);
+  }
+
+  layout.end = bytecode_index;
+  return layout;
+}
+
+BytecodeCompiler::ProcedureLayout BytecodeCompiler::CompileProcedure(
+    const IrProcedure& procedure, BytecodeModule& module) {
+  const u32 procedure_start{static_cast<u32>(module.instructions.size())};
+  const ProcedureLayout layout{
+      ComputeProcedureLayout(procedure, procedure_start),
+  };
+  const u32 argument_base{static_cast<u32>(module.call_arguments.size())};
+
+  for (IrValueId argument : procedure.call_arguments) {
+    module.call_arguments.push_back(ToRegister(argument));
+  }
+
+  for (const IrBasicBlock& block : procedure.blocks) {
+    CompileBlock(procedure, block, layout, argument_base, module);
+  }
+
+  FELL_ASSERT(module.instructions.size() == layout.end);
+  return layout;
+}
+
+void BytecodeCompiler::CompileBlock(const IrProcedure& procedure,
+                                    const IrBasicBlock& block,
+                                    const ProcedureLayout& layout,
+                                    u32 argument_base, BytecodeModule& module) {
+  for (const IrInstruction& instruction : block.instructions) {
+    CompileInstruction(procedure, instruction, argument_base, module);
+  }
+
+  CompileTerminator(procedure, block.terminator, layout, module);
+}
+
+void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
+                                          const IrInstruction& instruction,
+                                          u32 argument_base,
+                                          BytecodeModule& module) {
+  switch (instruction.opcode) {
+    case IrOpcode::kInvalid:
+      FELL_UNREACHABLE();
+
+    case IrOpcode::kConstant: {
+      const Type type{
+          GetIrValue(procedure, instruction.constant.destination).type,
+      };
+
+      if (type == Type::kString) {
+        module.instructions.push_back({
+            .opcode = Opcode::kLoadString,
+            .load_string =
+                {
+                    .destination = ToRegister(instruction.constant.destination),
+                    .constant = instruction.constant.string_value,
+                },
+        });
+      } else {
+        module.instructions.push_back({
+            .opcode = Opcode::kLoadImmediate,
+            .load_immediate =
+                {
+                    .destination = ToRegister(instruction.constant.destination),
+                    .value = MakeConstantValue(procedure, instruction.constant),
+                },
+        });
+      }
+
+      break;
+    }
+
+    case IrOpcode::kLoadGlobal:
+      module.instructions.push_back({
+          .opcode = Opcode::kLoadGlobal,
+          .global =
+              {
+                  .value = ToRegister(instruction.global.value),
+                  .global = instruction.global.global,
+              },
+      });
+
+      break;
+
+    case IrOpcode::kStoreGlobal:
+      module.instructions.push_back({
+          .opcode = Opcode::kStoreGlobal,
+          .global =
+              {
+                  .value = ToRegister(instruction.global.value),
+                  .global = instruction.global.global,
+              },
+      });
+
+      break;
+
+    case IrOpcode::kLoadLocal:
+      module.instructions.push_back({
+          .opcode = Opcode::kLoadLocal,
+          .local =
+              {
+                  .value = ToRegister(instruction.local.value),
+                  .local = instruction.local.local,
+              },
+      });
+
+      break;
+
+    case IrOpcode::kStoreLocal:
+      module.instructions.push_back({
+          .opcode = Opcode::kStoreLocal,
+          .local =
+              {
+                  .value = ToRegister(instruction.local.value),
+                  .local = instruction.local.local,
+              },
+      });
+
+      break;
+
+    case IrOpcode::kMove:
+      module.instructions.push_back({
+          .opcode = Opcode::kMove,
+          .move =
+              {
+                  .destination = ToRegister(instruction.move.destination),
+                  .source = ToRegister(instruction.move.source),
+              },
+      });
+
+      break;
+
+    case IrOpcode::kCall:
+      module.instructions.push_back({
+          .opcode = Opcode::kCall,
+          .call =
+              {
+                  .destination = ToRegister(instruction.call.destination),
+                  .function = instruction.call.function,
+                  .argument_offset =
+                      argument_base + instruction.call.argument_offset,
+                  .argument_count = instruction.call.argument_count,
+              },
+      });
+
+      break;
+
+    case IrOpcode::kCallNative:
+      module.instructions.push_back({
+          .opcode = Opcode::kCallNative,
+          .call_native =
+              {
+                  .argument = ToRegister(instruction.call_native.argument),
+                  .type = ToValueType(instruction.call_native.argument_type),
+                  .function = instruction.call_native.function,
+              },
+      });
+
+      break;
+
+    case IrOpcode::kConvert: {
+      const Type source_type{
+          GetIrValue(procedure, instruction.convert.source).type,
+      };
+      const Type destination_type{
+          GetIrValue(procedure, instruction.convert.destination).type,
+      };
+
+      module.instructions.push_back({
+          .opcode = GetConvertOpcode(source_type, destination_type),
+          .convert =
+              {
+                  .destination = ToRegister(instruction.convert.destination),
+                  .source = ToRegister(instruction.convert.source),
+              },
+      });
+
+      break;
+    }
+
+    case IrOpcode::kNegate:
+    case IrOpcode::kLogicalNot: {
+      const Type type{
+          GetIrValue(procedure, instruction.unary.destination).type,
+      };
+      FELL_ASSERT(GetIrValue(procedure, instruction.unary.operand).type ==
+                  type);
+
+      module.instructions.push_back({
+          .opcode = GetUnaryOpcode(instruction.opcode, type),
+          .unary =
+              {
+                  .destination = ToRegister(instruction.unary.destination),
+                  .operand = ToRegister(instruction.unary.operand),
+              },
+      });
+
+      break;
+    }
+
+    case IrOpcode::kMultiply:
+    case IrOpcode::kDivide:
+    case IrOpcode::kAdd:
+    case IrOpcode::kSubtract: {
+      const Type type{
+          GetIrValue(procedure, instruction.binary.destination).type,
+      };
+      FELL_ASSERT(GetIrValue(procedure, instruction.binary.left).type == type);
+      FELL_ASSERT(GetIrValue(procedure, instruction.binary.right).type == type);
+
+      module.instructions.push_back({
+          .opcode = GetBinaryOpcode(instruction.opcode, type),
+          .binary =
+              {
+                  .destination = ToRegister(instruction.binary.destination),
+                  .left = ToRegister(instruction.binary.left),
+                  .right = ToRegister(instruction.binary.right),
+              },
+      });
+
+      break;
+    }
+
+    case IrOpcode::kEqual:
+    case IrOpcode::kNotEqual:
+    case IrOpcode::kLess:
+    case IrOpcode::kLessEqual:
+    case IrOpcode::kGreater:
+    case IrOpcode::kGreaterEqual: {
+      const Type operand_type{
+          GetIrValue(procedure, instruction.binary.left).type,
+      };
+      FELL_ASSERT(GetIrValue(procedure, instruction.binary.right).type ==
+                  operand_type);
+      FELL_ASSERT(GetIrValue(procedure, instruction.binary.destination).type ==
+                  Type::kBool);
+
+      module.instructions.push_back({
+          .opcode = GetComparisonOpcode(instruction.opcode, operand_type),
+          .binary =
+              {
+                  .destination = ToRegister(instruction.binary.destination),
+                  .left = ToRegister(instruction.binary.left),
+                  .right = ToRegister(instruction.binary.right),
+              },
+      });
+
+      break;
+    }
+  }
+}
+
+void BytecodeCompiler::CompileTerminator(const IrProcedure& procedure,
+                                         const IrTerminator& terminator,
+                                         const ProcedureLayout& layout,
+                                         BytecodeModule& module) {
+  switch (terminator.kind) {
+    case IrTerminatorKind::kInvalid:
+      FELL_UNREACHABLE();
+
+    case IrTerminatorKind::kJump:
+      module.instructions.push_back({
+          .opcode = Opcode::kJump,
+          .jump =
+              {
+                  .target = layout.block_targets[terminator.jump.target],
+              },
+      });
+
+      break;
+
+    case IrTerminatorKind::kBranch:
+      module.instructions.push_back({
+          .opcode = Opcode::kJumpIfFalse,
+          .jump_if_false =
+              {
+                  .condition = ToRegister(terminator.branch.condition),
+                  .target =
+                      layout.block_targets[terminator.branch.false_target],
+              },
+      });
+
+      module.instructions.push_back({
+          .opcode = Opcode::kJump,
+          .jump =
+              {
+                  .target = layout.block_targets[terminator.branch.true_target],
+              },
+      });
+
+      break;
+
+    case IrTerminatorKind::kReturn: {
+      const Type type{GetIrValue(procedure, terminator.return_.value).type};
+
+      module.instructions.push_back({
+          .opcode = Opcode::kReturn,
+          .return_ =
+              {
+                  .source = ToRegister(terminator.return_.value),
+                  .type = ToValueType(type),
+              },
+      });
+
+      break;
+    }
+
+    case IrTerminatorKind::kExit:
+      module.instructions.push_back({
+          .opcode = Opcode::kJump,
+          .jump =
+              {
+                  .target = layout.end,
+              },
+      });
+
+      break;
+  }
+}
+
+BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
   BytecodeModule module{
       .instructions = {},
       .string_constants = ir.string_constants,
       .call_arguments = {},
       .functions = {},
       .main_instruction_count = 0,
-      .register_count = static_cast<u16>(ir.values.size()),
+      .register_count = GetRegisterCount(ir),
       .global_count = ir.global_count,
-      .local_count = ir.local_count,
+      .local_count = GetLocalCount(ir),
   };
 
-  Vector<u32> label_targets;
-  u32 bytecode_index{0};
+  const ProcedureLayout main_layout{CompileProcedure(ir.main, module)};
+  FELL_ASSERT(ir.main.entry < main_layout.block_targets.size());
 
-  for (const IrInstruction& instruction : ir.instructions) {
-    if (instruction.opcode == IrOpcode::kLabel) {
-      if (label_targets.size() <= instruction.label.label)
-        label_targets.resize(instruction.label.label + 1);
-      label_targets[instruction.label.label] = bytecode_index;
-    } else {
-      ++bytecode_index;
-    }
-  }
-
-  for (const IrValueId argument : ir.call_arguments) {
-    module.call_arguments.push_back(ToRegister(argument));
-  }
+  module.main_instruction_count = static_cast<u32>(module.instructions.size());
 
   for (const IrFunction& function : ir.functions) {
-    FELL_ASSERT(function.entry < label_targets.size());
+    const ProcedureLayout layout{CompileProcedure(function.procedure, module)};
+    FELL_ASSERT(function.procedure.entry < layout.block_targets.size());
+
     Vector<LocalId> parameter_slots;
 
     for (IrLocalId slot : function.parameter_local_slots) {
@@ -605,260 +979,10 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
     }
 
     module.functions.push_back({
-        .entry = label_targets[function.entry],
+        .entry = layout.block_targets[function.procedure.entry],
         .parameter_local_slots = std::move(parameter_slots),
         .return_type = ToValueType(function.return_type),
     });
-  }
-
-  for (u32 index{0}; index < ir.main_instruction_count; ++index) {
-    if (ir.instructions[index].opcode != IrOpcode::kLabel) {
-      ++module.main_instruction_count;
-    }
-  }
-
-  for (const IrInstruction& instruction : ir.instructions) {
-    switch (instruction.opcode) {
-      case IrOpcode::kInvalid:
-        FELL_UNREACHABLE();
-
-      case IrOpcode::kConstant: {
-        const Type type{GetIrValue(ir, instruction.constant.destination).type};
-
-        if (type == Type::kString) {
-          module.instructions.push_back({
-              .opcode = Opcode::kLoadString,
-              .load_string =
-                  {
-                      .destination =
-                          ToRegister(instruction.constant.destination),
-                      .constant = instruction.constant.string_value,
-                  },
-          });
-        } else {
-          module.instructions.push_back({
-              .opcode = Opcode::kLoadImmediate,
-              .load_immediate =
-                  {
-                      .destination =
-                          ToRegister(instruction.constant.destination),
-                      .value = MakeConstantValue(ir, instruction.constant),
-                  },
-          });
-        }
-        break;
-      }
-
-      case IrOpcode::kLoadGlobal:
-        module.instructions.push_back({
-            .opcode = Opcode::kLoadGlobal,
-            .global =
-                {
-                    .value = ToRegister(instruction.global.value),
-                    .global = instruction.global.global,
-                },
-        });
-        break;
-
-      case IrOpcode::kStoreGlobal:
-        module.instructions.push_back({
-            .opcode = Opcode::kStoreGlobal,
-            .global =
-                {
-                    .value = ToRegister(instruction.global.value),
-                    .global = instruction.global.global,
-                },
-        });
-        break;
-
-      case IrOpcode::kLoadLocal:
-        module.instructions.push_back({
-            .opcode = Opcode::kLoadLocal,
-            .local =
-                {
-                    .value = ToRegister(instruction.local.value),
-                    .local = instruction.local.local,
-                },
-        });
-        break;
-
-      case IrOpcode::kStoreLocal:
-        module.instructions.push_back({
-            .opcode = Opcode::kStoreLocal,
-            .local =
-                {
-                    .value = ToRegister(instruction.local.value),
-                    .local = instruction.local.local,
-                },
-        });
-        break;
-
-      case IrOpcode::kLabel:
-        break;
-
-      case IrOpcode::kMove:
-        module.instructions.push_back({
-            .opcode = Opcode::kMove,
-            .move =
-                {
-                    .destination = ToRegister(instruction.move.destination),
-                    .source = ToRegister(instruction.move.source),
-                },
-        });
-        break;
-
-      case IrOpcode::kJump:
-        FELL_ASSERT(instruction.jump.target < label_targets.size());
-        module.instructions.push_back({
-            .opcode = Opcode::kJump,
-            .jump =
-                {
-                    .target = label_targets[instruction.jump.target],
-                },
-        });
-        break;
-
-      case IrOpcode::kJumpIfFalse:
-        FELL_ASSERT(instruction.jump_if_false.target < label_targets.size());
-        module.instructions.push_back({
-            .opcode = Opcode::kJumpIfFalse,
-            .jump_if_false =
-                {
-                    .condition =
-                        ToRegister(instruction.jump_if_false.condition),
-                    .target = label_targets[instruction.jump_if_false.target],
-                },
-        });
-        break;
-
-      case IrOpcode::kCall:
-        module.instructions.push_back({
-            .opcode = Opcode::kCall,
-            .call =
-                {
-                    .destination = ToRegister(instruction.call.destination),
-                    .function = instruction.call.function,
-                    .argument_offset = instruction.call.argument_offset,
-                    .argument_count = instruction.call.argument_count,
-                },
-        });
-        break;
-
-      case IrOpcode::kCallNative:
-        module.instructions.push_back({
-            .opcode = Opcode::kCallNative,
-            .call_native =
-                {
-                    .argument = ToRegister(instruction.call_native.argument),
-                    .type = ToValueType(instruction.call_native.argument_type),
-                    .function = instruction.call_native.function,
-                },
-        });
-        break;
-
-      case IrOpcode::kConvert: {
-        const Type source_type{
-            GetIrValue(ir, instruction.convert.source).type,
-        };
-        const Type destination_type{
-            GetIrValue(ir, instruction.convert.destination).type,
-        };
-
-        module.instructions.push_back({
-            .opcode = GetConvertOpcode(source_type, destination_type),
-            .convert =
-                {
-                    .destination = ToRegister(instruction.convert.destination),
-                    .source = ToRegister(instruction.convert.source),
-                },
-        });
-        break;
-      }
-
-      case IrOpcode::kNegate:
-      case IrOpcode::kLogicalNot: {
-        const Type type{
-            GetIrValue(ir, instruction.unary.destination).type,
-        };
-
-        FELL_ASSERT(GetIrValue(ir, instruction.unary.operand).type == type);
-
-        module.instructions.push_back({
-            .opcode = GetUnaryOpcode(instruction.opcode, type),
-            .unary =
-                {
-                    .destination = ToRegister(instruction.unary.destination),
-                    .operand = ToRegister(instruction.unary.operand),
-                },
-        });
-        break;
-      }
-
-      case IrOpcode::kMultiply:
-      case IrOpcode::kDivide:
-      case IrOpcode::kAdd:
-      case IrOpcode::kSubtract: {
-        const Type type{
-            GetIrValue(ir, instruction.binary.destination).type,
-        };
-
-        FELL_ASSERT(GetIrValue(ir, instruction.binary.left).type == type);
-        FELL_ASSERT(GetIrValue(ir, instruction.binary.right).type == type);
-
-        module.instructions.push_back({
-            .opcode = GetBinaryOpcode(instruction.opcode, type),
-            .binary =
-                {
-                    .destination = ToRegister(instruction.binary.destination),
-                    .left = ToRegister(instruction.binary.left),
-                    .right = ToRegister(instruction.binary.right),
-                },
-        });
-        break;
-      }
-
-      case IrOpcode::kEqual:
-      case IrOpcode::kNotEqual:
-      case IrOpcode::kLess:
-      case IrOpcode::kLessEqual:
-      case IrOpcode::kGreater:
-      case IrOpcode::kGreaterEqual: {
-        const Type operand_type{
-            GetIrValue(ir, instruction.binary.left).type,
-        };
-        FELL_ASSERT(GetIrValue(ir, instruction.binary.right).type ==
-                    operand_type);
-        FELL_ASSERT(GetIrValue(ir, instruction.binary.destination).type ==
-                    Type::kBool);
-
-        module.instructions.push_back({
-            .opcode = GetComparisonOpcode(instruction.opcode, operand_type),
-            .binary =
-                {
-                    .destination = ToRegister(instruction.binary.destination),
-                    .left = ToRegister(instruction.binary.left),
-                    .right = ToRegister(instruction.binary.right),
-                },
-        });
-        break;
-      }
-
-      case IrOpcode::kReturn: {
-        const Type type{
-            GetIrValue(ir, instruction.return_.value).type,
-        };
-
-        module.instructions.push_back({
-            .opcode = Opcode::kReturn,
-            .return_ =
-                {
-                    .source = ToRegister(instruction.return_.value),
-                    .type = ToValueType(type),
-                },
-        });
-        break;
-      }
-    }
   }
 
   return module;

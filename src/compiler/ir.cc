@@ -5,8 +5,8 @@
 namespace fell {
 
 const IrValue& GetIrValue(const IrProcedure& procedure, IrValueId id) {
-  FELL_ASSERT(id.value < program.values.size());
-  return program.values[id.value];
+  FELL_ASSERT(id.value < procedure.values.size());
+  return procedure.values[id.value];
 }
 
 }  // namespace fell

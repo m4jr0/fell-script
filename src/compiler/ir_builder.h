@@ -26,7 +26,7 @@ class IrBuilder {
   IrValueId AllocateValue(IrProcedure& procedure, Type type);
 
   IrValueId ConvertIfNeeded(IrValueId source, Type destination_type,
-                            IrProgram& program);
+                            IrProcedure& procedure);
 
   IrBlockId CreateBlock(IrProcedure& procedure);
   IrBasicBlock& GetBlock(IrProcedure& procedure, IrBlockId block);
@@ -36,15 +36,16 @@ class IrBuilder {
 
   void EmitInstruction(IrProcedure& procedure,
                        const IrInstruction& instruction);
-  void EmitBooleanConstant(IrProgram& program, IrValueId destination,
+  void EmitBooleanConstant(IrProcedure& procedure, IrValueId destination,
                            bool value);
-  void EmitIntegerConstant(IrProgram& program, IrValueId destination, u64 value,
+  void EmitIntegerConstant(IrProcedure& procedure, IrValueId destination, u64 value,
                            Type type);
-  void EmitNegatedIntegerConstant(IrProgram& program, IrValueId destination,
+  void EmitNegatedIntegerConstant(IrProcedure& procedure, IrValueId destination,
                                   u64 magnitude, Type type);
-  void EmitFloatConstant(IrProgram& program, IrValueId destination, f64 value,
+  void EmitFloatConstant(IrProcedure& procedure, IrValueId destination, f64 value,
                          Type type);
-  void EmitStringConstant(IrProgram& program, IrValueId destination,
+  void EmitStringConstant(IrProgram& program, IrProcedure& procedure,
+                          IrValueId destination,
                           StringView value);
   void EmitJump(IrProcedure& procedure, IrBlockId target);
   void EmitBranch(IrProcedure& procedure, IrValueId condition,
