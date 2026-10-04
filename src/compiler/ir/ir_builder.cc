@@ -58,6 +58,24 @@ IrProgram IrBuilder::Build(const CompilationUnit& unit,
 
     ir_function.procedure.entry = CreateBlock(ir_function.procedure);
     ir_function.procedure.local_count = semantics.local_count();
+    ir_function.procedure.locals.resize(ir_function.procedure.local_count);
+
+    FELL_ASSERT(function.parameter_local_slots.size() ==
+                function.parameter_types.size());
+
+    for (usize index{0}; index < function.parameter_local_slots.size();
+         ++index) {
+      const IrLocalId local{function.parameter_local_slots[index]};
+      const Type type{function.parameter_types[index]};
+      FELL_ASSERT(local < ir_function.procedure.locals.size());
+
+      ir_function.procedure.locals[local].type = type;
+      ir_function.procedure.parameters.push_back({
+          .destination = AllocateValue(ir_function.procedure, type),
+          .local = local,
+      });
+    }
+
     SetCurrentBlock(ir_function.procedure.entry);
 
     BuildExpression(*function.declaration->function_declaration.data->body,
@@ -500,7 +518,6 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
     case ExpressionKind::kConditional: {
       const auto& conditional{expression.conditional};
       const Type result_type{semantics.Get(expression).type};
-      const IrValueId destination{AllocateValue(procedure, result_type)};
       const IrValueId condition{BuildExpression(*conditional.condition,
                                                 semantics, program, procedure)};
 
@@ -513,31 +530,28 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
       IrValueId then_value{BuildExpression(*conditional.then_expression,
                                            semantics, program, procedure)};
       then_value = ConvertIfNeeded(then_value, result_type, procedure);
-      EmitInstruction(procedure, {
-                                     .opcode = IrOpcode::kMove,
-                                     .move =
-                                         {
-                                             .destination = destination,
-                                             .source = then_value,
-                                         },
-                                 });
+      const IrBlockId then_predecessor{current_block_};
       EmitJump(procedure, end_block);
 
       SetCurrentBlock(else_block);
       IrValueId else_value{BuildExpression(*conditional.else_expression,
                                            semantics, program, procedure)};
       else_value = ConvertIfNeeded(else_value, result_type, procedure);
-      EmitInstruction(procedure, {
-                                     .opcode = IrOpcode::kMove,
-                                     .move =
-                                         {
-                                             .destination = destination,
-                                             .source = else_value,
-                                         },
-                                 });
+      const IrBlockId else_predecessor{current_block_};
       EmitJump(procedure, end_block);
 
       SetCurrentBlock(end_block);
+      const IrValueId destination{AllocateValue(procedure, result_type)};
+      const u32 incoming_offset{
+          static_cast<u32>(procedure.phi_incomings.size())};
+      procedure.phi_incomings.push_back({then_predecessor, then_value});
+      procedure.phi_incomings.push_back({else_predecessor, else_value});
+      GetCurrentBlock(procedure).phis.push_back({
+          .destination = destination,
+          .local = kInvalidIrLocalId,
+          .incoming_offset = incoming_offset,
+          .incoming_count = 2,
+      });
       return destination;
     }
 
@@ -621,7 +635,6 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
 
       if (binary.op == BinaryOperator::kLogicalAnd ||
           binary.op == BinaryOperator::kLogicalOr) {
-        const IrValueId destination{AllocateValue(procedure, Type::kBool)};
         const IrValueId left{
             BuildExpression(*binary.left, semantics, program, procedure)};
         const IrBlockId rhs_block{CreateBlock(procedure)};
@@ -635,30 +648,27 @@ IrValueId IrBuilder::BuildExpression(const Expression& expression,
         }
 
         SetCurrentBlock(short_circuit_block);
-        EmitInstruction(procedure, {
-                                       .opcode = IrOpcode::kMove,
-                                       .move =
-                                           {
-                                               .destination = destination,
-                                               .source = left,
-                                           },
-                                   });
+        const IrBlockId short_circuit_predecessor{current_block_};
         EmitJump(procedure, end_block);
 
         SetCurrentBlock(rhs_block);
         const IrValueId right{
             BuildExpression(*binary.right, semantics, program, procedure)};
-        EmitInstruction(procedure, {
-                                       .opcode = IrOpcode::kMove,
-                                       .move =
-                                           {
-                                               .destination = destination,
-                                               .source = right,
-                                           },
-                                   });
+        const IrBlockId rhs_predecessor{current_block_};
         EmitJump(procedure, end_block);
 
         SetCurrentBlock(end_block);
+        const IrValueId destination{AllocateValue(procedure, Type::kBool)};
+        const u32 incoming_offset{
+            static_cast<u32>(procedure.phi_incomings.size())};
+        procedure.phi_incomings.push_back({short_circuit_predecessor, left});
+        procedure.phi_incomings.push_back({rhs_predecessor, right});
+        GetCurrentBlock(procedure).phis.push_back({
+            .destination = destination,
+            .local = kInvalidIrLocalId,
+            .incoming_offset = incoming_offset,
+            .incoming_count = 2,
+        });
         return destination;
       }
 

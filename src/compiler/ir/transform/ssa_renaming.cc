@@ -148,6 +148,11 @@ void RenameBlock(IrBlockId block, RenameState& state) {
 
   for (usize phi_index{0}; phi_index < basic_block.phis.size(); ++phi_index) {
     const IrPhi& phi{basic_block.phis[phi_index]};
+
+    if (phi.local == kInvalidIrLocalId) {
+      continue;
+    }
+
     FELL_ASSERT(phi.local < state.promotable_locals.size());
 
     if (!state.promotable_locals[phi.local]) {
@@ -208,6 +213,11 @@ void RenameBlock(IrBlockId block, RenameState& state) {
     for (usize phi_index{0}; phi_index < successor_block.phis.size();
          ++phi_index) {
       const IrPhi& phi{successor_block.phis[phi_index]};
+
+      if (phi.local == kInvalidIrLocalId) {
+        continue;
+      }
+
       FELL_ASSERT(phi.local < state.promotable_locals.size());
 
       if (!state.promotable_locals[phi.local]) {
@@ -281,6 +291,11 @@ void RenameLocalsToSsa(IrProcedure& procedure) {
     phi_incomings[block].resize(procedure.blocks[block].phis.size());
   }
 
+  for (const IrParameter& parameter : procedure.parameters) {
+    FELL_ASSERT(parameter.local < promotable_locals.size());
+    promotable_locals[parameter.local] = true;
+  }
+
   RenameState state{
       .procedure = procedure,
       .graph = graph,
@@ -291,8 +306,13 @@ void RenameLocalsToSsa(IrProcedure& procedure) {
       .phi_incomings = std::move(phi_incomings),
   };
 
+  for (const IrParameter& parameter : procedure.parameters) {
+    state.definitions[parameter.local].push_back(parameter.destination);
+  }
+
   RenameBlock(procedure.entry, state);
 
+  const Vector<IrPhiIncoming> original_phi_incomings{procedure.phi_incomings};
   procedure.phi_incomings.clear();
 
   for (usize block_index{0}; block_index < procedure.blocks.size();
@@ -301,6 +321,23 @@ void RenameLocalsToSsa(IrProcedure& procedure) {
 
     for (usize phi_index{0}; phi_index < block.phis.size(); ++phi_index) {
       IrPhi& phi{block.phis[phi_index]};
+
+      if (phi.local == kInvalidIrLocalId) {
+        FELL_ASSERT(phi.incoming_offset <= original_phi_incomings.size());
+        FELL_ASSERT(phi.incoming_count <=
+                    original_phi_incomings.size() - phi.incoming_offset);
+
+        const u32 old_offset{phi.incoming_offset};
+        phi.incoming_offset = static_cast<u32>(procedure.phi_incomings.size());
+
+        for (u32 index{0}; index < phi.incoming_count; ++index) {
+          IrPhiIncoming incoming{original_phi_incomings[old_offset + index]};
+          incoming.value = ResolveValue(state.aliases, incoming.value);
+          procedure.phi_incomings.push_back(incoming);
+        }
+
+        continue;
+      }
 
       if (phi.local >= promotable_locals.size() ||
           !promotable_locals[phi.local]) {

@@ -11,7 +11,10 @@
 #include "compiler/ir/dump.h"
 #include "compiler/ir/ir_builder.h"
 #include "compiler/ir/ir_verifier.h"
+#include "compiler/ir/ssa_verifier.h"
 #include "compiler/ir/transform/phi_placement.h"
+#include "compiler/ir/transform/ssa_destruction.h"
+#include "compiler/ir/transform/ssa_renaming.h"
 
 namespace fell {
 namespace {
@@ -115,9 +118,23 @@ CompileResult Compiler::CompileUnit(const CompilationUnit& unit,
 
   VerifyIr(ir);
 
+  RenameLocalsToSsa(ir.main);
+  for (IrFunction& function : ir.functions) {
+    RenameLocalsToSsa(function.procedure);
+  }
+
+  VerifySsaIr(ir);
+
   if (options.dumps.Has(CompileDump::kIr)) {
     result.ir_dump = DumpIr(ir);
   }
+
+  DestroySsa(ir.main);
+  for (IrFunction& function : ir.functions) {
+    DestroySsa(function.procedure);
+  }
+
+  VerifyIr(ir);
 
   BytecodeCompiler bytecode_compiler{};
   result.program = bytecode_compiler.Compile(ir);

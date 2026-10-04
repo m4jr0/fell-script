@@ -3,15 +3,16 @@
 #include <algorithm>
 #include <utility>
 
+#include "compiler/backend/register_allocator.h"
 #include "core/assert.h"
 #include "core/type.h"
 
 namespace fell {
 namespace {
 
-RegisterId ToRegister(IrValueId value) {
-  FELL_ASSERT(value.value < kMaxRegisterCount);
-  return static_cast<RegisterId>(value.value);
+RegisterId ToRegister(IrValueId value, const RegisterAllocation& allocation) {
+  FELL_ASSERT(value.value < allocation.registers.size());
+  return allocation.registers[value.value];
 }
 
 ValueType ToValueType(Type type) {
@@ -587,18 +588,6 @@ u32 GetTerminatorInstructionCount(const IrTerminator& terminator) {
   FELL_UNREACHABLE();
 }
 
-u16 GetRegisterCount(const IrProgram& ir) {
-  usize max_value_count{ir.main.values.size()};
-
-  for (const IrFunction& function : ir.functions) {
-    max_value_count =
-        std::max(max_value_count, function.procedure.values.size());
-  }
-
-  FELL_ASSERT(max_value_count <= kMaxRegisterCount);
-  return static_cast<u16>(max_value_count);
-}
-
 u32 GetLocalCount(const IrProgram& ir) {
   u32 local_count{ir.main.local_count};
 
@@ -637,7 +626,8 @@ BytecodeCompiler::ProcedureLayout BytecodeCompiler::ComputeProcedureLayout(
 }
 
 BytecodeCompiler::ProcedureLayout BytecodeCompiler::CompileProcedure(
-    const IrProcedure& procedure, BytecodeModule& module) {
+    const IrProcedure& procedure, const RegisterAllocation& allocation,
+    BytecodeModule& module) {
   const u32 procedure_start{static_cast<u32>(module.instructions.size())};
   const ProcedureLayout layout{
       ComputeProcedureLayout(procedure, procedure_start),
@@ -645,11 +635,11 @@ BytecodeCompiler::ProcedureLayout BytecodeCompiler::CompileProcedure(
   const u32 argument_base{static_cast<u32>(module.call_arguments.size())};
 
   for (IrValueId argument : procedure.call_arguments) {
-    module.call_arguments.push_back(ToRegister(argument));
+    module.call_arguments.push_back(ToRegister(argument, allocation));
   }
 
   for (const IrBasicBlock& block : procedure.blocks) {
-    CompileBlock(procedure, block, layout, argument_base, module);
+    CompileBlock(procedure, block, layout, argument_base, allocation, module);
   }
 
   FELL_ASSERT(module.instructions.size() == layout.end);
@@ -659,17 +649,21 @@ BytecodeCompiler::ProcedureLayout BytecodeCompiler::CompileProcedure(
 void BytecodeCompiler::CompileBlock(const IrProcedure& procedure,
                                     const IrBasicBlock& block,
                                     const ProcedureLayout& layout,
-                                    u32 argument_base, BytecodeModule& module) {
+                                    u32 argument_base,
+                                    const RegisterAllocation& allocation,
+                                    BytecodeModule& module) {
   for (const IrInstruction& instruction : block.instructions) {
-    CompileInstruction(procedure, instruction, argument_base, module);
+    CompileInstruction(procedure, instruction, argument_base, allocation,
+                       module);
   }
 
-  CompileTerminator(procedure, block.terminator, layout, module);
+  CompileTerminator(procedure, block.terminator, layout, allocation, module);
 }
 
 void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
                                           const IrInstruction& instruction,
                                           u32 argument_base,
+                                          const RegisterAllocation& allocation,
                                           BytecodeModule& module) {
   switch (instruction.opcode) {
     case IrOpcode::kInvalid:
@@ -685,7 +679,8 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
             .opcode = Opcode::kLoadString,
             .load_string =
                 {
-                    .destination = ToRegister(instruction.constant.destination),
+                    .destination = ToRegister(instruction.constant.destination,
+                                              allocation),
                     .constant = instruction.constant.string_value,
                 },
         });
@@ -694,7 +689,8 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
             .opcode = Opcode::kLoadImmediate,
             .load_immediate =
                 {
-                    .destination = ToRegister(instruction.constant.destination),
+                    .destination = ToRegister(instruction.constant.destination,
+                                              allocation),
                     .value = MakeConstantValue(procedure, instruction.constant),
                 },
         });
@@ -708,7 +704,7 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kLoadGlobal,
           .global =
               {
-                  .value = ToRegister(instruction.global.value),
+                  .value = ToRegister(instruction.global.value, allocation),
                   .global = instruction.global.global,
               },
       });
@@ -720,7 +716,7 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kStoreGlobal,
           .global =
               {
-                  .value = ToRegister(instruction.global.value),
+                  .value = ToRegister(instruction.global.value, allocation),
                   .global = instruction.global.global,
               },
       });
@@ -732,7 +728,7 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kLoadLocal,
           .local =
               {
-                  .value = ToRegister(instruction.local.value),
+                  .value = ToRegister(instruction.local.value, allocation),
                   .local = instruction.local.local,
               },
       });
@@ -744,7 +740,7 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kStoreLocal,
           .local =
               {
-                  .value = ToRegister(instruction.local.value),
+                  .value = ToRegister(instruction.local.value, allocation),
                   .local = instruction.local.local,
               },
       });
@@ -756,8 +752,9 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kMove,
           .move =
               {
-                  .destination = ToRegister(instruction.move.destination),
-                  .source = ToRegister(instruction.move.source),
+                  .destination =
+                      ToRegister(instruction.move.destination, allocation),
+                  .source = ToRegister(instruction.move.source, allocation),
               },
       });
 
@@ -768,7 +765,8 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kCall,
           .call =
               {
-                  .destination = ToRegister(instruction.call.destination),
+                  .destination =
+                      ToRegister(instruction.call.destination, allocation),
                   .function = instruction.call.function,
                   .argument_offset =
                       argument_base + instruction.call.argument_offset,
@@ -783,7 +781,8 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = Opcode::kCallNative,
           .call_native =
               {
-                  .argument = ToRegister(instruction.call_native.argument),
+                  .argument =
+                      ToRegister(instruction.call_native.argument, allocation),
                   .type = ToValueType(instruction.call_native.argument_type),
                   .function = instruction.call_native.function,
               },
@@ -803,8 +802,9 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = GetConvertOpcode(source_type, destination_type),
           .convert =
               {
-                  .destination = ToRegister(instruction.convert.destination),
-                  .source = ToRegister(instruction.convert.source),
+                  .destination =
+                      ToRegister(instruction.convert.destination, allocation),
+                  .source = ToRegister(instruction.convert.source, allocation),
               },
       });
 
@@ -823,8 +823,9 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = GetUnaryOpcode(instruction.opcode, type),
           .unary =
               {
-                  .destination = ToRegister(instruction.unary.destination),
-                  .operand = ToRegister(instruction.unary.operand),
+                  .destination =
+                      ToRegister(instruction.unary.destination, allocation),
+                  .operand = ToRegister(instruction.unary.operand, allocation),
               },
       });
 
@@ -845,9 +846,10 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = GetBinaryOpcode(instruction.opcode, type),
           .binary =
               {
-                  .destination = ToRegister(instruction.binary.destination),
-                  .left = ToRegister(instruction.binary.left),
-                  .right = ToRegister(instruction.binary.right),
+                  .destination =
+                      ToRegister(instruction.binary.destination, allocation),
+                  .left = ToRegister(instruction.binary.left, allocation),
+                  .right = ToRegister(instruction.binary.right, allocation),
               },
       });
 
@@ -872,9 +874,10 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
           .opcode = GetComparisonOpcode(instruction.opcode, operand_type),
           .binary =
               {
-                  .destination = ToRegister(instruction.binary.destination),
-                  .left = ToRegister(instruction.binary.left),
-                  .right = ToRegister(instruction.binary.right),
+                  .destination =
+                      ToRegister(instruction.binary.destination, allocation),
+                  .left = ToRegister(instruction.binary.left, allocation),
+                  .right = ToRegister(instruction.binary.right, allocation),
               },
       });
 
@@ -886,6 +889,7 @@ void BytecodeCompiler::CompileInstruction(const IrProcedure& procedure,
 void BytecodeCompiler::CompileTerminator(const IrProcedure& procedure,
                                          const IrTerminator& terminator,
                                          const ProcedureLayout& layout,
+                                         const RegisterAllocation& allocation,
                                          BytecodeModule& module) {
   switch (terminator.kind) {
     case IrTerminatorKind::kInvalid:
@@ -907,7 +911,8 @@ void BytecodeCompiler::CompileTerminator(const IrProcedure& procedure,
           .opcode = Opcode::kJumpIfFalse,
           .jump_if_false =
               {
-                  .condition = ToRegister(terminator.branch.condition),
+                  .condition =
+                      ToRegister(terminator.branch.condition, allocation),
                   .target =
                       layout.block_targets[terminator.branch.false_target],
               },
@@ -930,7 +935,7 @@ void BytecodeCompiler::CompileTerminator(const IrProcedure& procedure,
           .opcode = Opcode::kReturn,
           .return_ =
               {
-                  .source = ToRegister(terminator.return_.value),
+                  .source = ToRegister(terminator.return_.value, allocation),
                   .type = ToValueType(type),
               },
       });
@@ -958,18 +963,26 @@ BytecodeModule BytecodeCompiler::Compile(const IrProgram& ir) {
       .call_arguments = {},
       .functions = {},
       .main_instruction_count = 0,
-      .register_count = GetRegisterCount(ir),
+      .register_count = 0,
       .global_count = ir.global_count,
       .local_count = GetLocalCount(ir),
   };
 
-  const ProcedureLayout main_layout{CompileProcedure(ir.main, module)};
+  const RegisterAllocation main_allocation{AllocateRegisters(ir.main)};
+  module.register_count =
+      std::max(module.register_count, main_allocation.register_count);
+  const ProcedureLayout main_layout{
+      CompileProcedure(ir.main, main_allocation, module)};
   FELL_ASSERT(ir.main.entry < main_layout.block_targets.size());
 
   module.main_instruction_count = static_cast<u32>(module.instructions.size());
 
   for (const IrFunction& function : ir.functions) {
-    const ProcedureLayout layout{CompileProcedure(function.procedure, module)};
+    const RegisterAllocation allocation{AllocateRegisters(function.procedure)};
+    module.register_count =
+        std::max(module.register_count, allocation.register_count);
+    const ProcedureLayout layout{
+        CompileProcedure(function.procedure, allocation, module)};
     FELL_ASSERT(function.procedure.entry < layout.block_targets.size());
 
     Vector<LocalId> parameter_slots;

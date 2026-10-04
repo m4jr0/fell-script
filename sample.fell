@@ -1,4 +1,4 @@
-// Fell integration sample.
+// Fell integration test.
 // Successful language behavior belongs here. Invalid programs belong in
 // dedicated negative tests.
 
@@ -7,6 +7,8 @@ print("Running Fell integration tests...");
 // Boolean values and logical operators.
 assert(!false);
 assert(true != false);
+assert(true == true);
+assert(false == false);
 
 // Every numeric type is accepted and survives a typed operation.
 let typed_s8 = 1s8 + 2s8;
@@ -19,12 +21,28 @@ let typed_u32 = 1u32 + 2u32;
 let typed_u64 = 1u64 + 2u64;
 let typed_f32 = 1.0f32 + 2.0f32;
 let typed_f64 = 1.0f64 + 2.0f64;
+assert(typed_s8 == 3s8);
+assert(typed_s16 == 3s16);
+assert(typed_s32 == 3s32);
+assert(typed_s64 == 3s64);
+assert(typed_u8 == 3u8);
+assert(typed_u16 == 3u16);
+assert(typed_u32 == 3u32);
+assert(typed_u64 == 3u64);
 assert(typed_f32 == 3.0f32);
+assert(typed_f64 == 3.0f64);
 
 // Arithmetic, precedence, unary negation, and comparisons.
 assert(2 + 3 * 4 == 14);
 assert((2 + 3) * 4 == 20);
 assert(-10 + 3 == -7);
+assert(10 / 2 == 5);
+assert(10 - 3 == 7);
+assert(2 < 3);
+assert(2 <= 2);
+assert(3 > 2);
+assert(3 >= 3);
+assert(3 != 4);
 
 // Contextual integer typing and lossless numeric conversion.
 let min_s8: s8 = -128;
@@ -32,14 +50,20 @@ let contextual_u64: u64 = 42;
 let widened_s64: s64 = 42s32;
 let widened_f64: f64 = 42s32;
 assert(min_s8 == -128s8);
+assert(contextual_u64 == 42u64);
+assert(widened_s64 == 42s64);
+assert(widened_f64 == 42.0f64);
 
 // Strings.
 assert("Hello, " + "Fell" == "Hello, Fell");
+assert("same" == "same");
+assert("left" != "right");
 
 // Globals and mutation.
 let immutable_global = 42;
 let mut health = 100;
 health = health - 25;
+assert(immutable_global == 42);
 assert(health == 75);
 
 // Lexical scopes, locals, and shadowing.
@@ -50,7 +74,6 @@ let shadowed = 10;
   assert(local == 20);
   assert(shadowed == 30);
 }
-
 assert(shadowed == 10);
 
 // Block expressions.
@@ -59,116 +82,100 @@ let block_value = {
   let b = 22;
   a + b
 };
-
 assert(block_value == 42);
 
 // If / else and conditional expressions.
 let mut branch_value = 0;
-
 if true {
   branch_value = 42;
 } else {
   branch_value = 1;
 }
-
 assert(branch_value == 42);
 assert((false ? 0 : 42) == 42);
+assert((true ? 42 : 0) == 42);
 
 // Short-circuiting with observable side effects.
 let mut and_rhs_evaluated = false;
 let mut or_rhs_evaluated = false;
-
 fn touch_and(): bool {
   and_rhs_evaluated = true;
   return true;
 }
-
 fn touch_or(): bool {
   or_rhs_evaluated = true;
   return false;
 }
-
+assert((false && touch_and()) == false);
 assert(and_rhs_evaluated == false);
+
+assert((true || touch_or()) == true);
 assert(or_rhs_evaluated == false);
+
+assert((true && touch_and()) == true);
+assert(and_rhs_evaluated == true);
+
+assert((false || touch_or()) == false);
+assert(or_rhs_evaluated == true);
 
 // While, break, and continue.
 let mut while_sum = 0;
 let mut while_index = 0;
-
 while while_index < 10 {
   while_index = while_index + 1;
-
   if while_index == 3 {
     continue;
   }
-
   if while_index == 8 {
     break;
   }
-
   while_sum = while_sum + while_index;
 }
-
 assert(while_sum == 25);
 
 // For loops, including omitted clauses.
 let mut for_sum = 0;
-
 for (let mut i = 0; i < 5; i = i + 1) {
   for_sum = for_sum + i;
 }
-
 assert(for_sum == 10);
-
 let mut infinite_for_iterations = 0;
-
 for (;;) {
   infinite_for_iterations = infinite_for_iterations + 1;
-
   if infinite_for_iterations == 3 {
     break;
   }
 }
-
 assert(infinite_for_iterations == 3);
 
 // Switch selection, default, and no implicit fallthrough.
 let mut switch_result = 0;
-
 switch 2 {
   case 1 { switch_result = 10; }
   case 2 { switch_result = 20; }
   default { switch_result = 30; }
 }
-
 assert(switch_result == 20);
-
 switch 99 {
   case 1 { switch_result = 10; }
   default { switch_result = 30; }
 }
-
 assert(switch_result == 30);
 
 // Functions, nested calls, numeric argument conversion, and globals.
 fn add(a: s32, b: s32): s32 {
   return a + b;
 }
-
 fn add_then_double(a: s32, b: s32): s32 {
   return add(a, b) * 2;
 }
-
 fn widen_parameter(value: s64): s64 {
   return value;
 }
-
 let global_for_function = 40;
-
 fn read_global(): s32 {
   return global_for_function + 2;
 }
-
 assert(add_then_double(10, 11) == 42);
 assert(widen_parameter(42s32) == 42s64);
 assert(read_global() == 42);
@@ -177,21 +184,865 @@ assert(read_global() == 42);
 fn call_forward(value: s32): s32 {
   return forward_target(value);
 }
-
 fn forward_target(value: s32): s32 {
   return value + 1;
 }
-
 fn factorial(n: s32): s32 {
   if n <= 1 {
     return 1;
   }
-
   return n * factorial(n - 1);
 }
-
 assert(call_forward(41) == 42);
 assert(factorial(5) == 120);
+
+// Phi-heavy local control flow.
+fn choose_phi(value: s32, first: bool, second: bool): s32 {
+  let mut result = value;
+  if first {
+    result = result + 10;
+  } else {
+    result = result + 20;
+  }
+  if second {
+    result = result * 2;
+  } else {
+    result = result + 1;
+  }
+  return result;
+}
+assert(choose_phi(1, true, true) == 22);
+assert(choose_phi(1, true, false) == 12);
+assert(choose_phi(1, false, true) == 42);
+assert(choose_phi(1, false, false) == 22);
+
+// Loop-carried phi values.
+fn sum_to(n: s32): s32 {
+  let mut i = 0;
+  let mut total = 0;
+  while i < n {
+    total = total + i;
+    i = i + 1;
+  }
+  return total;
+}
+assert(sum_to(100) == 4950);
+
+// Register-allocation stress test.
+// This deliberately creates far more than 256 source/IR values, while keeping
+// the live set tiny. It should succeed because dead values can reuse registers.
+fn many_sequential_values(): s32 {
+  let v0: s32 = 0;
+  let v1: s32 = v0 + 1;
+  let v2: s32 = v1 + 1;
+  let v3: s32 = v2 + 1;
+  let v4: s32 = v3 + 1;
+  let v5: s32 = v4 + 1;
+  let v6: s32 = v5 + 1;
+  let v7: s32 = v6 + 1;
+  let v8: s32 = v7 + 1;
+  let v9: s32 = v8 + 1;
+  let v10: s32 = v9 + 1;
+  let v11: s32 = v10 + 1;
+  let v12: s32 = v11 + 1;
+  let v13: s32 = v12 + 1;
+  let v14: s32 = v13 + 1;
+  let v15: s32 = v14 + 1;
+  let v16: s32 = v15 + 1;
+  let v17: s32 = v16 + 1;
+  let v18: s32 = v17 + 1;
+  let v19: s32 = v18 + 1;
+  let v20: s32 = v19 + 1;
+  let v21: s32 = v20 + 1;
+  let v22: s32 = v21 + 1;
+  let v23: s32 = v22 + 1;
+  let v24: s32 = v23 + 1;
+  let v25: s32 = v24 + 1;
+  let v26: s32 = v25 + 1;
+  let v27: s32 = v26 + 1;
+  let v28: s32 = v27 + 1;
+  let v29: s32 = v28 + 1;
+  let v30: s32 = v29 + 1;
+  let v31: s32 = v30 + 1;
+  let v32: s32 = v31 + 1;
+  let v33: s32 = v32 + 1;
+  let v34: s32 = v33 + 1;
+  let v35: s32 = v34 + 1;
+  let v36: s32 = v35 + 1;
+  let v37: s32 = v36 + 1;
+  let v38: s32 = v37 + 1;
+  let v39: s32 = v38 + 1;
+  let v40: s32 = v39 + 1;
+  let v41: s32 = v40 + 1;
+  let v42: s32 = v41 + 1;
+  let v43: s32 = v42 + 1;
+  let v44: s32 = v43 + 1;
+  let v45: s32 = v44 + 1;
+  let v46: s32 = v45 + 1;
+  let v47: s32 = v46 + 1;
+  let v48: s32 = v47 + 1;
+  let v49: s32 = v48 + 1;
+  let v50: s32 = v49 + 1;
+  let v51: s32 = v50 + 1;
+  let v52: s32 = v51 + 1;
+  let v53: s32 = v52 + 1;
+  let v54: s32 = v53 + 1;
+  let v55: s32 = v54 + 1;
+  let v56: s32 = v55 + 1;
+  let v57: s32 = v56 + 1;
+  let v58: s32 = v57 + 1;
+  let v59: s32 = v58 + 1;
+  let v60: s32 = v59 + 1;
+  let v61: s32 = v60 + 1;
+  let v62: s32 = v61 + 1;
+  let v63: s32 = v62 + 1;
+  let v64: s32 = v63 + 1;
+  let v65: s32 = v64 + 1;
+  let v66: s32 = v65 + 1;
+  let v67: s32 = v66 + 1;
+  let v68: s32 = v67 + 1;
+  let v69: s32 = v68 + 1;
+  let v70: s32 = v69 + 1;
+  let v71: s32 = v70 + 1;
+  let v72: s32 = v71 + 1;
+  let v73: s32 = v72 + 1;
+  let v74: s32 = v73 + 1;
+  let v75: s32 = v74 + 1;
+  let v76: s32 = v75 + 1;
+  let v77: s32 = v76 + 1;
+  let v78: s32 = v77 + 1;
+  let v79: s32 = v78 + 1;
+  let v80: s32 = v79 + 1;
+  let v81: s32 = v80 + 1;
+  let v82: s32 = v81 + 1;
+  let v83: s32 = v82 + 1;
+  let v84: s32 = v83 + 1;
+  let v85: s32 = v84 + 1;
+  let v86: s32 = v85 + 1;
+  let v87: s32 = v86 + 1;
+  let v88: s32 = v87 + 1;
+  let v89: s32 = v88 + 1;
+  let v90: s32 = v89 + 1;
+  let v91: s32 = v90 + 1;
+  let v92: s32 = v91 + 1;
+  let v93: s32 = v92 + 1;
+  let v94: s32 = v93 + 1;
+  let v95: s32 = v94 + 1;
+  let v96: s32 = v95 + 1;
+  let v97: s32 = v96 + 1;
+  let v98: s32 = v97 + 1;
+  let v99: s32 = v98 + 1;
+  let v100: s32 = v99 + 1;
+  let v101: s32 = v100 + 1;
+  let v102: s32 = v101 + 1;
+  let v103: s32 = v102 + 1;
+  let v104: s32 = v103 + 1;
+  let v105: s32 = v104 + 1;
+  let v106: s32 = v105 + 1;
+  let v107: s32 = v106 + 1;
+  let v108: s32 = v107 + 1;
+  let v109: s32 = v108 + 1;
+  let v110: s32 = v109 + 1;
+  let v111: s32 = v110 + 1;
+  let v112: s32 = v111 + 1;
+  let v113: s32 = v112 + 1;
+  let v114: s32 = v113 + 1;
+  let v115: s32 = v114 + 1;
+  let v116: s32 = v115 + 1;
+  let v117: s32 = v116 + 1;
+  let v118: s32 = v117 + 1;
+  let v119: s32 = v118 + 1;
+  let v120: s32 = v119 + 1;
+  let v121: s32 = v120 + 1;
+  let v122: s32 = v121 + 1;
+  let v123: s32 = v122 + 1;
+  let v124: s32 = v123 + 1;
+  let v125: s32 = v124 + 1;
+  let v126: s32 = v125 + 1;
+  let v127: s32 = v126 + 1;
+  let v128: s32 = v127 + 1;
+  let v129: s32 = v128 + 1;
+  let v130: s32 = v129 + 1;
+  let v131: s32 = v130 + 1;
+  let v132: s32 = v131 + 1;
+  let v133: s32 = v132 + 1;
+  let v134: s32 = v133 + 1;
+  let v135: s32 = v134 + 1;
+  let v136: s32 = v135 + 1;
+  let v137: s32 = v136 + 1;
+  let v138: s32 = v137 + 1;
+  let v139: s32 = v138 + 1;
+  let v140: s32 = v139 + 1;
+  let v141: s32 = v140 + 1;
+  let v142: s32 = v141 + 1;
+  let v143: s32 = v142 + 1;
+  let v144: s32 = v143 + 1;
+  let v145: s32 = v144 + 1;
+  let v146: s32 = v145 + 1;
+  let v147: s32 = v146 + 1;
+  let v148: s32 = v147 + 1;
+  let v149: s32 = v148 + 1;
+  let v150: s32 = v149 + 1;
+  let v151: s32 = v150 + 1;
+  let v152: s32 = v151 + 1;
+  let v153: s32 = v152 + 1;
+  let v154: s32 = v153 + 1;
+  let v155: s32 = v154 + 1;
+  let v156: s32 = v155 + 1;
+  let v157: s32 = v156 + 1;
+  let v158: s32 = v157 + 1;
+  let v159: s32 = v158 + 1;
+  let v160: s32 = v159 + 1;
+  let v161: s32 = v160 + 1;
+  let v162: s32 = v161 + 1;
+  let v163: s32 = v162 + 1;
+  let v164: s32 = v163 + 1;
+  let v165: s32 = v164 + 1;
+  let v166: s32 = v165 + 1;
+  let v167: s32 = v166 + 1;
+  let v168: s32 = v167 + 1;
+  let v169: s32 = v168 + 1;
+  let v170: s32 = v169 + 1;
+  let v171: s32 = v170 + 1;
+  let v172: s32 = v171 + 1;
+  let v173: s32 = v172 + 1;
+  let v174: s32 = v173 + 1;
+  let v175: s32 = v174 + 1;
+  let v176: s32 = v175 + 1;
+  let v177: s32 = v176 + 1;
+  let v178: s32 = v177 + 1;
+  let v179: s32 = v178 + 1;
+  let v180: s32 = v179 + 1;
+  let v181: s32 = v180 + 1;
+  let v182: s32 = v181 + 1;
+  let v183: s32 = v182 + 1;
+  let v184: s32 = v183 + 1;
+  let v185: s32 = v184 + 1;
+  let v186: s32 = v185 + 1;
+  let v187: s32 = v186 + 1;
+  let v188: s32 = v187 + 1;
+  let v189: s32 = v188 + 1;
+  let v190: s32 = v189 + 1;
+  let v191: s32 = v190 + 1;
+  let v192: s32 = v191 + 1;
+  let v193: s32 = v192 + 1;
+  let v194: s32 = v193 + 1;
+  let v195: s32 = v194 + 1;
+  let v196: s32 = v195 + 1;
+  let v197: s32 = v196 + 1;
+  let v198: s32 = v197 + 1;
+  let v199: s32 = v198 + 1;
+  let v200: s32 = v199 + 1;
+  let v201: s32 = v200 + 1;
+  let v202: s32 = v201 + 1;
+  let v203: s32 = v202 + 1;
+  let v204: s32 = v203 + 1;
+  let v205: s32 = v204 + 1;
+  let v206: s32 = v205 + 1;
+  let v207: s32 = v206 + 1;
+  let v208: s32 = v207 + 1;
+  let v209: s32 = v208 + 1;
+  let v210: s32 = v209 + 1;
+  let v211: s32 = v210 + 1;
+  let v212: s32 = v211 + 1;
+  let v213: s32 = v212 + 1;
+  let v214: s32 = v213 + 1;
+  let v215: s32 = v214 + 1;
+  let v216: s32 = v215 + 1;
+  let v217: s32 = v216 + 1;
+  let v218: s32 = v217 + 1;
+  let v219: s32 = v218 + 1;
+  let v220: s32 = v219 + 1;
+  let v221: s32 = v220 + 1;
+  let v222: s32 = v221 + 1;
+  let v223: s32 = v222 + 1;
+  let v224: s32 = v223 + 1;
+  let v225: s32 = v224 + 1;
+  let v226: s32 = v225 + 1;
+  let v227: s32 = v226 + 1;
+  let v228: s32 = v227 + 1;
+  let v229: s32 = v228 + 1;
+  let v230: s32 = v229 + 1;
+  let v231: s32 = v230 + 1;
+  let v232: s32 = v231 + 1;
+  let v233: s32 = v232 + 1;
+  let v234: s32 = v233 + 1;
+  let v235: s32 = v234 + 1;
+  let v236: s32 = v235 + 1;
+  let v237: s32 = v236 + 1;
+  let v238: s32 = v237 + 1;
+  let v239: s32 = v238 + 1;
+  let v240: s32 = v239 + 1;
+  let v241: s32 = v240 + 1;
+  let v242: s32 = v241 + 1;
+  let v243: s32 = v242 + 1;
+  let v244: s32 = v243 + 1;
+  let v245: s32 = v244 + 1;
+  let v246: s32 = v245 + 1;
+  let v247: s32 = v246 + 1;
+  let v248: s32 = v247 + 1;
+  let v249: s32 = v248 + 1;
+  let v250: s32 = v249 + 1;
+  let v251: s32 = v250 + 1;
+  let v252: s32 = v251 + 1;
+  let v253: s32 = v252 + 1;
+  let v254: s32 = v253 + 1;
+  let v255: s32 = v254 + 1;
+  let v256: s32 = v255 + 1;
+  let v257: s32 = v256 + 1;
+  let v258: s32 = v257 + 1;
+  let v259: s32 = v258 + 1;
+  let v260: s32 = v259 + 1;
+  let v261: s32 = v260 + 1;
+  let v262: s32 = v261 + 1;
+  let v263: s32 = v262 + 1;
+  let v264: s32 = v263 + 1;
+  let v265: s32 = v264 + 1;
+  let v266: s32 = v265 + 1;
+  let v267: s32 = v266 + 1;
+  let v268: s32 = v267 + 1;
+  let v269: s32 = v268 + 1;
+  let v270: s32 = v269 + 1;
+  let v271: s32 = v270 + 1;
+  let v272: s32 = v271 + 1;
+  let v273: s32 = v272 + 1;
+  let v274: s32 = v273 + 1;
+  let v275: s32 = v274 + 1;
+  let v276: s32 = v275 + 1;
+  let v277: s32 = v276 + 1;
+  let v278: s32 = v277 + 1;
+  let v279: s32 = v278 + 1;
+  let v280: s32 = v279 + 1;
+  let v281: s32 = v280 + 1;
+  let v282: s32 = v281 + 1;
+  let v283: s32 = v282 + 1;
+  let v284: s32 = v283 + 1;
+  let v285: s32 = v284 + 1;
+  let v286: s32 = v285 + 1;
+  let v287: s32 = v286 + 1;
+  let v288: s32 = v287 + 1;
+  let v289: s32 = v288 + 1;
+  let v290: s32 = v289 + 1;
+  let v291: s32 = v290 + 1;
+  let v292: s32 = v291 + 1;
+  let v293: s32 = v292 + 1;
+  let v294: s32 = v293 + 1;
+  let v295: s32 = v294 + 1;
+  let v296: s32 = v295 + 1;
+  let v297: s32 = v296 + 1;
+  let v298: s32 = v297 + 1;
+  let v299: s32 = v298 + 1;
+  let v300: s32 = v299 + 1;
+  let v301: s32 = v300 + 1;
+  let v302: s32 = v301 + 1;
+  let v303: s32 = v302 + 1;
+  let v304: s32 = v303 + 1;
+  let v305: s32 = v304 + 1;
+  let v306: s32 = v305 + 1;
+  let v307: s32 = v306 + 1;
+  let v308: s32 = v307 + 1;
+  let v309: s32 = v308 + 1;
+  let v310: s32 = v309 + 1;
+  let v311: s32 = v310 + 1;
+  let v312: s32 = v311 + 1;
+  let v313: s32 = v312 + 1;
+  let v314: s32 = v313 + 1;
+  let v315: s32 = v314 + 1;
+  let v316: s32 = v315 + 1;
+  let v317: s32 = v316 + 1;
+  let v318: s32 = v317 + 1;
+  let v319: s32 = v318 + 1;
+  let v320: s32 = v319 + 1;
+  let v321: s32 = v320 + 1;
+  let v322: s32 = v321 + 1;
+  let v323: s32 = v322 + 1;
+  let v324: s32 = v323 + 1;
+  let v325: s32 = v324 + 1;
+  let v326: s32 = v325 + 1;
+  let v327: s32 = v326 + 1;
+  let v328: s32 = v327 + 1;
+  let v329: s32 = v328 + 1;
+  let v330: s32 = v329 + 1;
+  let v331: s32 = v330 + 1;
+  let v332: s32 = v331 + 1;
+  let v333: s32 = v332 + 1;
+  let v334: s32 = v333 + 1;
+  let v335: s32 = v334 + 1;
+  let v336: s32 = v335 + 1;
+  let v337: s32 = v336 + 1;
+  let v338: s32 = v337 + 1;
+  let v339: s32 = v338 + 1;
+  let v340: s32 = v339 + 1;
+  let v341: s32 = v340 + 1;
+  let v342: s32 = v341 + 1;
+  let v343: s32 = v342 + 1;
+  let v344: s32 = v343 + 1;
+  let v345: s32 = v344 + 1;
+  let v346: s32 = v345 + 1;
+  let v347: s32 = v346 + 1;
+  let v348: s32 = v347 + 1;
+  let v349: s32 = v348 + 1;
+  let v350: s32 = v349 + 1;
+  let v351: s32 = v350 + 1;
+  let v352: s32 = v351 + 1;
+  let v353: s32 = v352 + 1;
+  let v354: s32 = v353 + 1;
+  let v355: s32 = v354 + 1;
+  let v356: s32 = v355 + 1;
+  let v357: s32 = v356 + 1;
+  let v358: s32 = v357 + 1;
+  let v359: s32 = v358 + 1;
+  let v360: s32 = v359 + 1;
+  let v361: s32 = v360 + 1;
+  let v362: s32 = v361 + 1;
+  let v363: s32 = v362 + 1;
+  let v364: s32 = v363 + 1;
+  let v365: s32 = v364 + 1;
+  let v366: s32 = v365 + 1;
+  let v367: s32 = v366 + 1;
+  let v368: s32 = v367 + 1;
+  let v369: s32 = v368 + 1;
+  let v370: s32 = v369 + 1;
+  let v371: s32 = v370 + 1;
+  let v372: s32 = v371 + 1;
+  let v373: s32 = v372 + 1;
+  let v374: s32 = v373 + 1;
+  let v375: s32 = v374 + 1;
+  let v376: s32 = v375 + 1;
+  let v377: s32 = v376 + 1;
+  let v378: s32 = v377 + 1;
+  let v379: s32 = v378 + 1;
+  let v380: s32 = v379 + 1;
+  let v381: s32 = v380 + 1;
+  let v382: s32 = v381 + 1;
+  let v383: s32 = v382 + 1;
+  let v384: s32 = v383 + 1;
+  let v385: s32 = v384 + 1;
+  let v386: s32 = v385 + 1;
+  let v387: s32 = v386 + 1;
+  let v388: s32 = v387 + 1;
+  let v389: s32 = v388 + 1;
+  let v390: s32 = v389 + 1;
+  let v391: s32 = v390 + 1;
+  let v392: s32 = v391 + 1;
+  let v393: s32 = v392 + 1;
+  let v394: s32 = v393 + 1;
+  let v395: s32 = v394 + 1;
+  let v396: s32 = v395 + 1;
+  let v397: s32 = v396 + 1;
+  let v398: s32 = v397 + 1;
+  let v399: s32 = v398 + 1;
+  let v400: s32 = v399 + 1;
+  return v400;
+}
+assert(many_sequential_values() == 400);
+
+// Mutation stress test: many SSA versions of one source variable.
+fn many_mutations(): s32 {
+  let mut value: s32 = 0;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  value = value + 1;
+  return value;
+}
+assert(many_mutations() == 400);
 
 // Native print values.
 print(true);

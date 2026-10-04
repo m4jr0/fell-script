@@ -138,6 +138,11 @@ struct IrPhiIncoming {
   IrValueId value{IrValueId{}};
 };
 
+struct IrParameter {
+  IrValueId destination{IrValueId{}};
+  IrLocalId local{kInvalidIrLocalId};
+};
+
 struct IrJump {
   IrBlockId target{kInvalidIrBlockId};
 };
@@ -196,6 +201,7 @@ struct IrProcedure {
   Vector<IrBasicBlock> blocks;
   Vector<IrValue> values;
   Vector<IrLocalMetadata> locals;
+  Vector<IrParameter> parameters;
   Vector<IrPhiIncoming> phi_incomings;
   Vector<IrValueId> call_arguments;
 

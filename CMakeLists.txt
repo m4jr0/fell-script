@@ -42,6 +42,7 @@ fell_configure_target(fell_core)
 add_library(fell_compiler
     src/compiler/frontend/ast.cc
     src/compiler/backend/bytecode_compiler.cc
+    src/compiler/backend/register_allocator.cc
     src/compiler/compiler.cc
     src/compiler/ir/analysis/control_flow_graph.cc
     src/compiler/ir/analysis/control_flow_traversal.cc
@@ -50,6 +51,7 @@ add_library(fell_compiler
     src/compiler/ir/analysis/dominance_frontier.cc
     src/compiler/ir/transform/phi_placement.cc
     src/compiler/ir/transform/ssa_renaming.cc
+    src/compiler/ir/transform/ssa_destruction.cc
     src/compiler/ir/dump.cc
     src/compiler/ir/ir.cc
     src/compiler/ir/ir_builder.cc
