@@ -48,10 +48,13 @@ add_library(fell_compiler
     src/compiler/frontend/diagnostic.cc
     src/compiler/ir/analysis/dominator_tree.cc
     src/compiler/ir/analysis/dominance_frontier.cc
+    src/compiler/ir/transform/phi_placement.cc
+    src/compiler/ir/transform/ssa_renaming.cc
     src/compiler/ir/dump.cc
     src/compiler/ir/ir.cc
     src/compiler/ir/ir_builder.cc
     src/compiler/ir/ir_verifier.cc
+    src/compiler/ir/ssa_verifier.cc
     src/compiler/frontend/lexer.cc
     src/compiler/frontend/parser.cc
     src/compiler/frontend/semantic_analyzer.cc

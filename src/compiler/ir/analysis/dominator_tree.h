@@ -9,6 +9,7 @@ namespace fell {
 
 struct DominatorTree {
   Vector<IrBlockId> immediate_dominators;
+  Vector<Vector<IrBlockId>> children;
 };
 
 DominatorTree ComputeDominatorTree(const IrProcedure& procedure,

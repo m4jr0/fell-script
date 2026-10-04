@@ -9,9 +9,8 @@
 namespace fell {
 namespace {
 
-struct LocalInformation {
-  Vector<Vector<IrBlockId>> definition_blocks;
-  Vector<Type> types;
+struct LocalDefinitions {
+  Vector<Vector<IrBlockId>> blocks;
 };
 
 IrValueId AllocateValue(IrProcedure& procedure, Type type) {
@@ -41,33 +40,34 @@ void AddUniqueBlock(Vector<IrBlockId>& blocks, IrBlockId block) {
   blocks.push_back(block);
 }
 
-void ObserveLocalType(LocalInformation& information, IrLocalId local,
-                      Type type) {
-  FELL_ASSERT(local < information.types.size());
+void ObserveLocalType(IrProcedure& procedure, IrLocalId local, Type type) {
+  FELL_ASSERT(local < procedure.locals.size());
   FELL_ASSERT(type != Type::kInvalid);
   FELL_ASSERT(type != Type::kError);
   FELL_ASSERT(type != Type::kUnit);
 
-  if (information.types[local] == Type::kInvalid) {
-    information.types[local] = type;
+  IrLocalMetadata& metadata{procedure.locals[local]};
+
+  if (metadata.type == Type::kInvalid) {
+    metadata.type = type;
     return;
   }
 
-  FELL_ASSERT(information.types[local] == type);
+  FELL_ASSERT(metadata.type == type);
 }
 
-LocalInformation CollectLocalInformation(
-    const IrProcedure& procedure,
-    const Vector<IrLocalId>& entry_defined_locals) {
-  LocalInformation information{
-      .definition_blocks = Vector<Vector<IrBlockId>>(procedure.local_count),
-      .types = Vector<Type>(procedure.local_count, Type::kInvalid),
+LocalDefinitions CollectLocalDefinitions(
+    IrProcedure& procedure, const Vector<IrLocalId>& entry_defined_locals) {
+  FELL_ASSERT(procedure.locals.size() == procedure.local_count);
+
+  LocalDefinitions definitions{
+      .blocks = Vector<Vector<IrBlockId>>(procedure.locals.size()),
   };
 
-  Vector<bool> defined_at_entry(procedure.local_count, false);
+  Vector<bool> defined_at_entry(procedure.locals.size(), false);
 
   for (IrLocalId local : entry_defined_locals) {
-    FELL_ASSERT(local < procedure.local_count);
+    FELL_ASSERT(local < procedure.locals.size());
     defined_at_entry[local] = true;
   }
 
@@ -77,43 +77,43 @@ LocalInformation CollectLocalInformation(
 
     for (const IrInstruction& instruction :
          procedure.blocks[block_index].instructions) {
-      if (instruction.opcode != IrOpcode::kLoadLocal &&
-          instruction.opcode != IrOpcode::kStoreLocal) {
+      if (!IsLocalAccess(instruction.opcode)) {
         continue;
       }
 
       const IrLocalId local{instruction.local.local};
-      FELL_ASSERT(local < procedure.local_count);
+      FELL_ASSERT(local < procedure.locals.size());
 
-      ObserveLocalType(information, local,
+      ObserveLocalType(procedure, local,
                        GetIrValue(procedure, instruction.local.value).type);
 
       if (instruction.opcode == IrOpcode::kStoreLocal) {
-        AddUniqueBlock(information.definition_blocks[local], block);
+        AddUniqueBlock(definitions.blocks[local], block);
       }
     }
   }
 
-  for (IrLocalId local{0}; local < procedure.local_count; ++local) {
+  for (IrLocalId local{0}; local < procedure.locals.size(); ++local) {
     if (!defined_at_entry[local]) {
       continue;
     }
 
-    // An entry-defined local only needs a type if it participates in the
-    // procedure's local IR. Parameters that are never read or written can
-    // remain absent from SSA promotion.
-    if (information.types[local] != Type::kInvalid) {
-      AddUniqueBlock(information.definition_blocks[local], procedure.entry);
+    if (procedure.locals[local].type != Type::kInvalid) {
+      AddUniqueBlock(definitions.blocks[local], procedure.entry);
     }
   }
 
-  return information;
+  return definitions;
 }
 
 }  // namespace
 
 void PlacePhiNodes(IrProcedure& procedure,
                    const Vector<IrLocalId>& entry_defined_locals) {
+  if (procedure.locals.empty() && procedure.local_count != 0) {
+    procedure.locals.resize(procedure.local_count);
+  }
+
   const ControlFlowGraph graph{BuildControlFlowGraph(procedure)};
   const ControlFlowTraversal traversal{
       ComputeControlFlowTraversal(procedure, graph),
@@ -125,22 +125,27 @@ void PlacePhiNodes(IrProcedure& procedure,
       ComputeDominanceFrontiers(procedure, graph, dominator_tree),
   };
 
-  LocalInformation information{
-      CollectLocalInformation(procedure, entry_defined_locals),
+  const LocalDefinitions definitions{
+      CollectLocalDefinitions(procedure, entry_defined_locals),
   };
 
-  for (IrLocalId local{0}; local < procedure.local_count; ++local) {
-    if (information.definition_blocks[local].empty()) {
+  Vector<bool> has_phi(procedure.blocks.size());
+  Vector<bool> in_worklist(procedure.blocks.size());
+  Vector<IrBlockId> worklist;
+
+  for (IrLocalId local{0}; local < procedure.locals.size(); ++local) {
+    if (definitions.blocks[local].empty()) {
       continue;
     }
 
-    FELL_ASSERT(information.types[local] != Type::kInvalid);
+    std::fill(has_phi.begin(), has_phi.end(), false);
+    std::fill(in_worklist.begin(), in_worklist.end(), false);
+    worklist.clear();
 
-    Vector<bool> has_phi(procedure.blocks.size(), false);
-    Vector<bool> in_worklist(procedure.blocks.size(), false);
-    Vector<IrBlockId> worklist;
+    const Type type{procedure.locals[local].type};
+    FELL_ASSERT(type != Type::kInvalid);
 
-    for (IrBlockId block : information.definition_blocks[local]) {
+    for (IrBlockId block : definitions.blocks[local]) {
       FELL_ASSERT(block < procedure.blocks.size());
 
       if (!traversal.reachable[block] || in_worklist[block]) {
@@ -164,7 +169,7 @@ void PlacePhiNodes(IrProcedure& procedure,
         }
 
         const IrValueId destination{
-            AllocateValue(procedure, information.types[local]),
+            AllocateValue(procedure, type),
         };
 
         procedure.blocks[frontier].phis.push_back({
@@ -176,8 +181,6 @@ void PlacePhiNodes(IrProcedure& procedure,
 
         has_phi[frontier] = true;
 
-        // A phi is itself a definition. Its block may therefore require
-        // another phi in its own dominance frontier.
         if (!in_worklist[frontier]) {
           worklist.push_back(frontier);
           in_worklist[frontier] = true;

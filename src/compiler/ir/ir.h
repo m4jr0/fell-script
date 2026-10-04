@@ -126,6 +126,18 @@ struct IrBinary {
   IrValueId right{IrValueId{}};
 };
 
+struct IrPhi {
+  IrValueId destination{IrValueId{}};
+  IrLocalId local{kInvalidIrLocalId};
+  u32 incoming_offset{0};
+  u32 incoming_count{0};
+};
+
+struct IrPhiIncoming {
+  IrBlockId predecessor{kInvalidIrBlockId};
+  IrValueId value{IrValueId{}};
+};
+
 struct IrJump {
   IrBlockId target{kInvalidIrBlockId};
 };
@@ -170,7 +182,12 @@ struct IrValue {
   Type type{Type::kInvalid};
 };
 
+struct IrLocalMetadata {
+  Type type{Type::kInvalid};
+};
+
 struct IrBasicBlock {
+  Vector<IrPhi> phis;
   Vector<IrInstruction> instructions;
   IrTerminator terminator{};
 };
@@ -178,6 +195,8 @@ struct IrBasicBlock {
 struct IrProcedure {
   Vector<IrBasicBlock> blocks;
   Vector<IrValue> values;
+  Vector<IrLocalMetadata> locals;
+  Vector<IrPhiIncoming> phi_incomings;
   Vector<IrValueId> call_arguments;
 
   IrBlockId entry{kInvalidIrBlockId};
@@ -199,6 +218,7 @@ struct IrProgram {
   u32 global_count{0};
 };
 
+[[nodiscard]] bool IsLocalAccess(IrOpcode opcode);
 const IrValue& GetIrValue(const IrProcedure& procedure, IrValueId id);
 
 }  // namespace fell

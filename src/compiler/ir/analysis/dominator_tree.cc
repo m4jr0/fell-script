@@ -44,6 +44,7 @@ DominatorTree ComputeDominatorTree(const IrProcedure& procedure,
   DominatorTree tree{
       .immediate_dominators =
           Vector<IrBlockId>(procedure.blocks.size(), kInvalidIrBlockId),
+      .children = Vector<Vector<IrBlockId>>(procedure.blocks.size()),
   };
 
   Vector<u32> reverse_postorder_positions(procedure.blocks.size(),
@@ -63,7 +64,6 @@ DominatorTree ComputeDominatorTree(const IrProcedure& procedure,
   while (changed) {
     changed = false;
 
-    // Skip the entry block.
     for (usize index{1}; index < traversal.reverse_postorder.size(); ++index) {
       const IrBlockId block{traversal.reverse_postorder[index]};
       IrBlockId new_immediate_dominator{kInvalidIrBlockId};
@@ -71,10 +71,6 @@ DominatorTree ComputeDominatorTree(const IrProcedure& procedure,
       for (IrBlockId predecessor : graph.predecessors[block]) {
         FELL_ASSERT(predecessor < procedure.blocks.size());
 
-        // Ignore predecessors whose immediate dominator is not known yet.
-        // This can happen with back edges in loops. If newly discovered
-        // dominator information changes the result during this pass, the
-        // fixed-point iteration will process the block again.
         if (tree.immediate_dominators[predecessor] == kInvalidIrBlockId) {
           continue;
         }
@@ -96,6 +92,17 @@ DominatorTree ComputeDominatorTree(const IrProcedure& procedure,
         changed = true;
       }
     }
+  }
+
+  for (IrBlockId block : traversal.reverse_postorder) {
+    if (block == procedure.entry) {
+      continue;
+    }
+
+    const IrBlockId parent{tree.immediate_dominators[block]};
+    FELL_ASSERT(parent != kInvalidIrBlockId);
+    FELL_ASSERT(parent < tree.children.size());
+    tree.children[parent].push_back(block);
   }
 
   return tree;

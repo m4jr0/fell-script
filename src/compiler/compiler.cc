@@ -11,6 +11,7 @@
 #include "compiler/ir/dump.h"
 #include "compiler/ir/ir_builder.h"
 #include "compiler/ir/ir_verifier.h"
+#include "compiler/ir/transform/phi_placement.h"
 
 namespace fell {
 namespace {
@@ -101,8 +102,16 @@ CompileResult Compiler::CompileUnit(const CompilationUnit& unit,
   }
 
   IrBuilder ir_builder{};
-  const IrProgram ir{
+  IrProgram ir{
       ir_builder.Build(unit, semantic_result.model, return_last_expression)};
+
+  VerifyIr(ir);
+
+  PlacePhiNodes(ir.main);
+
+  for (IrFunction& function : ir.functions) {
+    PlacePhiNodes(function.procedure, function.parameter_local_slots);
+  }
 
   VerifyIr(ir);
 
